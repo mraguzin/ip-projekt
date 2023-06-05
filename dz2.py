@@ -6,16 +6,21 @@ standardne aritmetičke i logičke operatore iz C-a (uključujući i ternarni). 
     koje su vrijednosti itd., ja poznam nekog tko zna sve to.)
     * tip podatka koji reprezentira hijerarhiju; ovo služi za formalno smještanje pojedinih gljiva unutar Linneove ili slične (najvjerojatnije složenije)
     taksonomije (varijanta, vrsta, rod, familija,...)
-    * operator za dodjelu statusa jestivosti/toksičnosti itd. nekoj gljivi; ona se identificira imenom varijable koje prethodno mora biti
-    registrirano kao ime gljive, za što služi. Primjer: ako je varijabla 'fung' gljiva, tada fung <- edible; označava tu gljivu kao jestivu
-    * operator deklaracije gljive: na neki način i ovo je
+    ==TRI GLAVNA NOVA OPERATORA==
+    * operator mutacije dodjeljenog DNA. Npr. ⥼fungus; specificira da se gljiva 'fungus' mutira po konfiguriranoj distribuciji (pri njenoj konstrukciji)
+    (https://en.wikipedia.org/wiki/Genetic_operator)
+    (https://archive.org/details/geneticprogrammi0000koza/page/n13/mode/2up)
+    * operator križanja. Npr. fungus1 ⊗ fungus2; obavlja križanje dvije gljive i vraća njihovo "dijete"
+    * operator selekcije. Npr. [fungus1,fungus2,fungus3]⊙; odabire gljivu iz liste po određenom (interno parametrizabilnom) kriteriju. Ovaj operator
+    radi samo nad *listama* jedinki! Općenito želimo da sva tri također rade nad listama radi potpunosti.
+    * deklaracija gljive: na neki način i ovo je
     operator (a la operator new u C++u) koji pripremi sve potrebne info o gljivi: hrvatsko ime, stručno latinsko ime,
     klasifikaciju (hijerarhija), mjesto pronalaska, datum, masa,... TODO: što sve tu treba? 
     * operator deklaracije hijerarhije: ovo služi da proglasi neku varijablu hijerarhijom, kako bi se ona onda mogla koristiti pri deklaraciji pojedine gljive.
     Sa hijerarhijama se *ne može* raditi izvan varijabli, tj. one ne mogu biti literali (unose se peacemeal)!
     * operator dodavanja novog elementa hijerarhije u već postojeću: ako je hijerarhija u varijabli 'hij', onda hij.fam = 'famxyz';
     mijenja (ili dodaje, ako familija nije prethodno bila dodijeljena) 'famxyz' kao novu familiju hijerarhije 'hij'.
-    * gljive kao objekti su imutabilni
+    * *svi* objekti su imutabilni na razini jezika, ali kompletno mutabilni u smislu genetskih operatora koji se nad njima mogu izvoditi
     
     
 Aritmetički izrazi ovdje služe kako bi manipulirali onim podacima gljive koji su brojevi i koji onda služe za definiciju pojedine gljive. Dakle, sveukupno
@@ -37,7 +42,7 @@ lako spremiti cijeli niz objekata.
 from vepar import *
 
 class T(TipoviTokena):
-    EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA = '=<>+-*/(){}[];:?,'
+    EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA, DOT = '=<>+-*/(){}[];:?,.'
     ASGN, NEQ, LE, GE = ':=', '!=', '<=', '>='
     AND, OR, NOT = 'and', 'or', 'not'
     LET, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME = 'let', 'string', 'number', 'bool', 'fungus', 'tree', 'edibility',
@@ -50,11 +55,15 @@ class T(TipoviTokena):
     CONTINUE, BREAK = 'continue', 'break'
     FOR, IF = 'for', 'if'
     TRUE, FALSE = 'true', 'false'
+    SETPARAM = 'setParam'  #ovo je builtin funkcija koja služi interaktivnoj izmjeni/prilagodbi globalnihparametara evolucijskih operatora
+    # kako bi se dobili željeni
+    # populacijski rezultati kroz simulirane generacije gljiva. Sami parametri nisu hardkodirani u jeziku; predaju se kao stringovi i interpreter
+    # je dužan nositi se s njima kako spada.
 
     class DOT(Token): pass
-    class ARROW(Token): pass
-    class DNASTART(Token): pass
-    class DNAEND(Token): pass
+    class MUTATION(Token): pass
+    class CROSSING(Token): pass
+    class SELECTION(Token): pass
     class BROJ(Token):
         def vrijednost(self):
             return float(self.sadržaj)
@@ -99,7 +108,7 @@ class T(TipoviTokena):
     class WRITE(Token):
         literal = 'write'
 
-alias = {'<-': T.ARROW, 'is': T.ARROW, '.': T.DOT, 'part': T.DOT, '[': T.DNASTART, 'DNAstart': T.DNASTART, ']': T.DNAEND, 'DNAend': T.DNAEND}
+alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
 
 @lexer
 def miko(lex):
@@ -107,18 +116,25 @@ def miko(lex):
         if znak == '#':
             lex * {lambda x: x != '\n'} # moramo ovako jer želimo da bude legalno ostaviti  #    do samog kraja datoteke (tj. datoteka završi u komentaru)
             lex.zanemari()
-        elif znak.isdigit():
+            continue
+        elif znak == '-':
+            if znak := lex >= str.isdigit:
+                 pass
+            else:
+                 yield lex.literal(T)
+                 continue
+        if znak.isdigit():
             lex * {str.isdigit, '.'}
             if lex.sadržaj.count('.') == 3: # poseban slučaj za datume, oni se mogu odmah lexati kao takvi: 26.3.2023. Ali jasno treba dodatan check u parseru...
                 if len(lex.sadržaj) < 6:
-                    lex.greška('Ilegalan format datuma') #TODO: detaljni error reporting za datume u fazi parsiranja
+                    raise lex.greška('Ilegalan format datuma') #TODO: detaljni error reporting za datume u fazi parsiranja
                 else:
                     yield lex.token(T.DATUM)
             else:
                 try:
                     test = float(lex.sadržaj)
                 except ValueError:
-                    lex.greška('Ilegalan format broja')
+                    raise lex.greška('Ilegalan format broja')
                 yield lex.token(T.BROJ)
         elif znak.isalpha():
             lex * {str.isalnum, '_'}
@@ -162,25 +178,25 @@ def miko(lex):
 # start -> (stmt | fun)+
 # type -> (STRING | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
 # decl -> LET IME | LET asgn
-# asgn -> IME ASGN expr | IME ARROW expr
+# asgn -> IME ASGN expr
 # expr -> expr2 UPIT expr COLON expr | expr2
 # expr2 -> expr2 OR expr3 | expr3
 # expr3 -> expr3 AND expr4 | expr4
 # expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
 # term -> (fact PUTA)+ fact | (fact DIV)+ fact | fact     #TODO: implicitno množenje
-# fact -> fact DOT bot | bot
-# bot -> IME | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | cons | edb | dnaspec | datespec
+# fact -> (bot DOT)+ bot | bot
+# bot -> IME (ASGN expr)? | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb | datespec | list
+# list -> LUGL args? DUGL
 # unit -> MILIGRAM | GRAM | KILOGRAM
 # cons -> type OTV args? ZATV   # konstruktori za builtin tipove
-# fun -> FUNCTION OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
-# params -> IME COMMA params | IME
-# stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI | asgn SEMI
+# fun -> FUNCTION IME OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
+# params -> (IME COMMA)+ IME | IME
+# stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI |## asgn SEMI
 # stmt2 -> CONTINUE SEMI | BREAK SEMI | stmt
 # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
 # branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT
-# call -> (IME|READ|WRITE) OTV args? ZATV
-# args -> expr COMMA args | expr
-# dnaspec -> DNASTART params+ DNAEND  #ovdje pojedina imena moraju biti iz {A,T,C,G}; to se provjerava tijekom parsiranja
+# call -> (IME|READ|WRITE|SETPARAM) OTV args? ZATV
+# args -> (expr COMMA)+ expr | expr
 ## datespec -> DATUM timespec? | BROJ DOT BROJ DOT BROJ DOT timespec? #ovo bi bilo fleksibilnije pravilo s korisničke strane, ali opet izlazi van LL(1) okvira...
 # datespec -> DATUM timespec?
 # timespec -> BROJ COLON BROJ (COLON BROJ)? 
@@ -191,16 +207,201 @@ def miko(lex):
 #ne olakšava takav dizajn, pa je za sada ovo klasični jednoprolazni parser i stoga sve na što se referiramo mora biti već viđeno
 class P(Parser):
     def start(p):
+        rt.symtab = Memorija()
+        functions = []
+        statements = []
+
+        while p.vidi():
+            if p > T.FUNCTION:
+                functions.append(p.fun())
+            else:   
+                statements.append(*p.stmts())
+
+        if len(statements) == 0:
+            raise p.greška('Program je prazan')
+        
+        return Program(statements, functions)
+    
+    # fun -> FUNCTION IME OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
+    def fun(p):
+        p >> T.FUNCTION
+        name = p >> T.IME
+        params = []
+        p >> T.OTV
+        if not p >= T.ZATV:
+            params = p.params()
+            p >> T.ZATV
+        p >> T.LVIT
+        body = p.body()
+        p >> T.DVIT
+        rt.symtab[name] = Function(name, params, body)
+        return rt.symtab[name]
+
+    def params(p):
+        names = [p >> T.IME]
+        while p >= T.COMMA: names.append(p >> T.IME)
+        return names
+    
+    def body(p):
+        
+
+
+    def stmts(p, more=True):
         elements = []
-        el = p.vidi()
-        if el ^ T.FOR:
-            elements.append(p.forloop())
-        elif el ^ T.IF:
-            elements.append(p.branch())
-        elif el ^ T.READ or el ^ T.WRITE:
-            elements.append(p.call())
-        elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM:
-            elements.append(p.expr()) #tu su ubačeni i call za user-fun i naredbe pridruživanja; disambiguacija se događa tek u expr() (ne može prije jer LL(1))
-        elif el ^ T.LET:
-            elements.append(p.decl())
-        elif el ^ 
+        while el := p >= {T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+            if el ^ T.FOR:
+                elements.append(p.forloop())
+            elif el ^ T.IF:
+                elements.append(p.branch())
+            elif el ^ T.READ or el ^ T.WRITE or el ^ T.SETPARAM:
+                p >> T.SEMI
+                elements.append(p.call())
+            elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.TRUE or el ^ T.FALSE or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.STRING or el ^ T.NUMBER or el ^ T.BOOL or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.EDIBILITY or el ^ T.DNA or el ^ T.DATETIME or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM or el ^ T.LUGL:
+                p >> T.SEMI
+                elements.append(p.expr()) #tu su ubačeni i call za user-fun i naredbe pridruživanja; disambiguacija se događa tek u expr() (ne može prije jer LL(1))
+            elif el ^ T.LET:
+                p >> T.SEMI
+                elements.append(p.decl())
+            if not more:
+                break
+        # ne hendlamo početni token za `asgn` ovdje jer je on početni i za `expr`; općenito, smatrat ćemo da su i dodjele izrazi, iako nama semantički nisu
+        # i to će se razriješiti u odgovarajućoj funkciji
+        if not more and len(elements) == 0:
+            raise p.greška('Očekivana jedna naredba')
+        return Statements(elements)
+    
+    def stmts2(p, more=True):
+        statements = []
+        while p > {T.LET, T.CONTINUE, T.BREAK, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+            if el := p >= {T.CONTINUE, T.BREAK}:
+                p >> T.SEMI
+                statements.append(el)
+            else:
+                statements.append(*p.stmts(more))
+
+        return Statements(statements)
+        
+    
+    # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
+    def forloop(p):
+        p >> T.FOR
+        var = p >> T.IME
+        if var not in rt.symtab:
+            raise p.greška('Varijabla ' + var.sadržaj + ' nije definirana')
+        if rt.symtab[var] ^ Function:
+            raise p.greška('U for petlji je ime funkcije umjesto varijable')
+        if p >= T.LVIT:
+            stmts = p.stmts2()
+            p >> T.DVIT
+            return ForLoop(var, stmts)
+        else:
+            stmt = p.stmts2(False)
+            return ForLoop(var, stmt)
+        
+        # branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT
+    def branch(p):
+        p >> T.IF
+        p >> T.OTV
+        test = p.expr()
+        p >> T.ZATV
+        if p >= T.LVIT:
+            stmts = p.stmts()
+            p >> T.DVIT
+            return Branch(test, stmts)
+        else:
+            stmt = p.stmt(False)
+            return Branch(var, stmt)
+        
+        # call -> (IME|READ|WRITE|SETPARAM) OTV args? ZATV
+    def call(p):
+        fun = None
+        if fun := p >= T.IME:
+            if fun not in rt.symtab:
+                raise p.greška('Funkcija ' + fun.sadržaj + ' nije definirana')
+            if not rt.symtab[fun] ^ Function:
+                raise p.greška('Očekivana funkcija za poziv')
+        else: 
+            fun = p >> {T.READ, T.WRITE, T.SETPARAM}
+        p >> T.OTV
+        args = []
+        if p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+            args = p.args()
+        return Call(fun, args)
+    
+    # expr -> expr2 UPIT expr COLON expr | expr2
+# expr2 -> expr2 OR expr3 | expr3
+# expr3 -> expr3 AND expr4 | expr4
+# expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
+# term -> (fact PUTA)+ fact | (fact DIV)+ fact | fact     #TODO: implicitno množenje
+# fact -> fact DOT bot | bot
+
+    def expr(p):
+        left = p.expr2()
+        if p >= T.UPIT:
+            middle = p.expr()
+            p >> T.COLON
+            right = p.expr()
+            return Ternary(left, middle, right)
+        else:
+            return left
+        
+    def expr2(p):
+        tree = p.expr3()
+        while op := p >= T.OR:
+            tree = Binary(op, tree, p.expr3())
+        return tree
+    
+    def expr3(p):
+        tree = p.expr4()
+        while op := p >= T.AND:
+            tree = Binary(op, tree, p.expr4())
+        return tree
+    
+    def expr4(p):
+        terms = [[T.PLUS, p.term()]]
+        while op := p >= {T.PLUS, T.MINUS}: terms.append([op, p.term()])
+        return Nary(terms)
+    
+    def term(p):
+        facts = [[T.PUTA, p.fact()]]
+        while op := p >= {T.PUTA, T.DIV}: facts.append([op, p.fact()])
+        return Nary(facts)
+    
+    def fact(p):
+        bots = [p.bot()]
+        while p >= T.DOT: bots.append(p.bot())
+        return List(bots)
+    
+    # bot -> IME (ASGN expr)? | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb | datespec | list
+    def bot(p):
+        if var := p > T.IME:
+            if var not in rt.symtab:
+                raise p.greška('Ime ' + var.sadržaj + ' nije viđeno do sada')
+            if rt.symtab[var] ^ Function: # ovo mora biti poziv funkcije 'var'
+                return p.call()
+            else: # inače je čisto pridruživanje varijable ili čisto pojavljivanje varijable (po mogućnosti unutar složenijeg izraza)
+                if p >= T.ASGN:
+                    return Assignment(var, p.expr())
+                else:
+                    return var
+# decl -> LET IME | LET asgn
+    def decl(p):
+        p >> T.LET
+        var = p >> T.IME
+        rt.symtab[var] = var
+
+        if p >= T.ASGN:
+            return Assignment(var, p.expr())
+        else:
+            return var
+
+    def args(p):
+        exprs = [p.expr()]
+        while p >= T.COMMA: exprs.append(p.expr())
+        return exprs
+
+        
+            
+
+
+
