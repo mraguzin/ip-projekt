@@ -5,9 +5,9 @@ standardne aritmetičke i logičke operatore iz C-a (uključujući i ternarni). 
     * tip podataka koji reprezentira relevantne biomarkere/otiske/DNA (TODO: provjeriti sa stručnjakom što bi točno trebalo biti ovdje tj.
     koje su vrijednosti itd., ja poznam nekog tko zna sve to.)
     * tip podatka koji reprezentira hijerarhiju; ovo služi za formalno smještanje pojedinih gljiva unutar Linneove ili slične (najvjerojatnije složenije)
-    hijerarhije (varijanta, vrsta, rod, familija,...)
+    taksonomije (varijanta, vrsta, rod, familija,...)
     * operator za dodjelu statusa jestivosti/toksičnosti itd. nekoj gljivi; ona se identificira imenom varijable koje prethodno mora biti
-    registrirano kao ime gljive, za što služi
+    registrirano kao ime gljive, za što služi. Primjer: ako je varijabla 'fung' gljiva, tada fung <- edible; označava tu gljivu kao jestivu
     * operator deklaracije gljive: na neki način i ovo je
     operator (a la operator new u C++u) koji pripremi sve potrebne info o gljivi: hrvatsko ime, stručno latinsko ime,
     klasifikaciju (hijerarhija), mjesto pronalaska, datum, masa,... TODO: što sve tu treba? 
@@ -15,6 +15,7 @@ standardne aritmetičke i logičke operatore iz C-a (uključujući i ternarni). 
     Sa hijerarhijama se *ne može* raditi izvan varijabli, tj. one ne mogu biti literali (unose se peacemeal)!
     * operator dodavanja novog elementa hijerarhije u već postojeću: ako je hijerarhija u varijabli 'hij', onda hij.fam = 'famxyz';
     mijenja (ili dodaje, ako familija nije prethodno bila dodijeljena) 'famxyz' kao novu familiju hijerarhije 'hij'.
+    * gljive kao objekti su imutabilni
     
     
 Aritmetički izrazi ovdje služe kako bi manipulirali onim podacima gljive koji su brojevi i koji onda služe za definiciju pojedine gljive. Dakle, sveukupno
@@ -36,7 +37,7 @@ lako spremiti cijeli niz objekata.
 from vepar import *
 
 class T(TipoviTokena):
-    EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, SEMI, COLON, UPIT, DOT, COMMA = '=<>+-*/(){};:?.,'
+    EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA = '=<>+-*/(){}[];:?,'
     ASGN, NEQ, LE, GE = ':=', '!=', '<=', '>='
     AND, OR, NOT = 'and', 'or', 'not'
     LET, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME = 'let', 'string', 'number', 'bool', 'fungus', 'tree', 'edibility',
@@ -44,12 +45,16 @@ class T(TipoviTokena):
     DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible' #TODO
     SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #TODO: jel ovo ok?
     #https://en.wikipedia.org/wiki/Taxonomy_mnemonic   
-    #RETURN = 'return'   # mislim da ovaj jezik ne treba ništa vraćati iz korisničkih funkcija...?
     MILIGRAM, GRAM, KILOGRAM = 'mg', 'g', 'kg'
-    FUNCTION = 'function' #ako nećemo povratne vrijednosti, onda moramo ovako
+    FUNCTION, RETURN = 'function', 'return'
     CONTINUE, BREAK = 'continue', 'break'
     FOR, IF = 'for', 'if'
+    TRUE, FALSE = 'true', 'false'
 
+    class DOT(Token): pass
+    class ARROW(Token): pass
+    class DNASTART(Token): pass
+    class DNAEND(Token): pass
     class BROJ(Token):
         def vrijednost(self):
             return float(self.sadržaj)
@@ -66,8 +71,8 @@ class T(TipoviTokena):
                         ret += '\\'
                     elif idući == 't':
                         ret += '\t'
-                    elif idući == '\n':
-                        ret += '\n'
+                    elif idući == '\n': # ovo je za prijelaz u novi red kad se stavi \ na samom kraju linije, što *ne smije* rezultirati u \n u samom stringu!
+                        pass
                     else:
                         ret += idući
                     i += 2
@@ -75,21 +80,36 @@ class T(TipoviTokena):
                     ret += znak
                     i += 1
             return ret
-    class DATUM(Token): pass
+    class DATUM(Token):
+        def vrijednost(self):
+            try:
+                return [int(dio) for dio in self.sadržaj.split('.')]
+            except ValueError:
+                raise SemantičkaGreška('Krivi format datuma')
+        
+        def validiraj(self):
+            dijelovi = self.vrijednost()
+            if dijelovi[0] < 0 or dijelovi[0] > 31 or dijelovi[1] > 12 or dijelovi[1] < 1 or dijelovi[2] < 1000 or dijelovi[2] > 9999:
+                raise SemantičkaGreška('Nemoguć datum')
+            
+            return True
+            
     class READ(Token):
         literal = 'read'
     class WRITE(Token):
         literal = 'write'
 
+alias = {'<-': T.ARROW, 'is': T.ARROW, '.': T.DOT, 'part': T.DOT, '[': T.DNASTART, 'DNAstart': T.DNASTART, ']': T.DNAEND, 'DNAend': T.DNAEND}
+
 @lexer
 def miko(lex):
     for znak in lex:
         if znak == '#':
-            lex * '\n'
+            lex * {lambda x: x != '\n'} # moramo ovako jer želimo da bude legalno ostaviti  #    do samog kraja datoteke (tj. datoteka završi u komentaru)
             lex.zanemari()
         elif znak.isdigit():
             lex * {str.isdigit, '.'}
-            if lex.sadržaj.count('.') == 3: # poseban slučaj za datume, oni se mogu odmah lexati kao datumi: 26.3.2023. Ali jasno treba dodatan check u parseru...
+            if lex.sadržaj.count('.') == 3: # poseban slučaj za datume, oni se mogu odmah lexati kao takvi: 26.3.2023. Ali jasno treba dodatan check u parseru...
                 if len(lex.sadržaj) < 6:
                     lex.greška('Ilegalan format datuma') #TODO: detaljni error reporting za datume u fazi parsiranja
                 else:
@@ -102,13 +122,17 @@ def miko(lex):
                 yield lex.token(T.BROJ)
         elif znak.isalpha():
             lex * {str.isalnum, '_'}
-            yield lex.literal_ili(T.IME)
+            if lex.sadržaj in alias:
+                yield lex.token(alias[lex.sadržaj])
+            else:
+                yield lex.literal_ili(T.IME)
         elif znak == ':':
             lex >= '='
             yield lex.literal(T)
         elif znak == '<':
             lex >= '='
-            yield lex.literal(T)
+            lex >= '-'
+            yield lex.literal_ili(alias[lex.sadržaj])
         elif znak == '>':
             lex >= '='
             yield lex.literal(T)
@@ -128,34 +152,38 @@ def miko(lex):
         elif znak.isspace():
             lex.zanemari()
         else:
-            yield lex.literal(T)
+            yield lex.literal_ili(alias[lex.sadržaj])
 
 #imamo tipove: string, number, bool, fungus, tree, edibility, dna, datetime
 #AUTO, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME
-    #DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible' #TODO
+    #DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible'
 
 ## BKG:
 # start -> (stmt | fun)+
 # type -> (STRING | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
 # decl -> LET IME | LET asgn
-# asgn -> IME ASGN expr
+# asgn -> IME ASGN expr | IME ARROW expr
 # expr -> expr2 UPIT expr COLON expr | expr2
 # expr2 -> expr2 OR expr3 | expr3
 # expr3 -> expr3 AND expr4 | expr4
 # expr4 -> expr4 PLUS term | expr4 MINUS term | term
 # term -> term PUTA fact | term DIV fact | fact
-# fact -> IME | BROJ | STRING | MINUS fact | NOT fact | OTV expr ZATV | FUNGUS | TREE | edb | dnaspec | datespec
-# fun -> FUNCTION OTV params? ZATV LUGL stmt* DUGL
+# fact -> fact DOT bot | bot
+# bot -> IME | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | cons | edb | dnaspec | datespec
+# unit -> MILIGRAM | GRAM | KILOGRAM
+# cons -> type OTV args? ZATV   # konstruktori za builtin tipove
+# fun -> FUNCTION OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
 # params -> IME COMMA params | IME
-# stmt2 -> CONTINUE SEMI | BREAK SEMI | forloop | branch | call SEMI | expr SEMI | decl SEMI | asgn SEMI
 # stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI | asgn SEMI
-# forloop -> FOR IME LUGL stmt2* DUGL | FOR IME stmt2
-# branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LUGL stmt* DUGL
+# stmt2 -> CONTINUE SEMI | BREAK SEMI | stmt
+# forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
+# branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT
 # call -> (IME|READ|WRITE) OTV args? ZATV
 # args -> expr COMMA args | expr
 # dnaspec -> TODO
+## datespec -> DATUM timespec? | BROJ DOT BROJ DOT BROJ DOT timespec? #ovo bi bilo fleksibilnije pravilo s korisničke strane, ali opet izlazi van LL(1) okvira...
 # datespec -> DATUM timespec?
-# timespec -> BROJ COLON BROJ (COLON BROJ)?  #moguće je da postoji višeznačnost zbog : u ternarnom operatoru, ali nama dodjela (:=) nije izraz pa je ipak ok
+# timespec -> BROJ COLON BROJ (COLON BROJ)? 
 # edb -> DEADLY | TOXIC1 | TOXIC2 | EDIBLE
 
 #Parser bi trebao biti dvoprolazni radi lakšeg rada s pozivima funkcija za korisnike: program se izvodi kao Python skripta, dakle  kod može biti u globalnom
@@ -164,15 +192,15 @@ def miko(lex):
 class P(Parser):
     def start(p):
         elements = []
-        el = p.čitaj()
+        el = p.vidi()
         if el ^ T.FOR:
             elements.append(p.forloop())
         elif el ^ T.IF:
             elements.append(p.branch())
         elif el ^ T.READ or el ^ T.WRITE:
             elements.append(p.call())
-        elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ el ^ T.DATUM:
+        elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM:
             elements.append(p.expr()) #tu su ubačeni i call za user-fun i naredbe pridruživanja; disambiguacija se događa tek u expr() (ne može prije jer LL(1))
         elif el ^ T.LET:
             elements.append(p.decl())
-        #elif el ^ 
+        elif el ^ 
