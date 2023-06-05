@@ -166,8 +166,8 @@ def miko(lex):
 # expr -> expr2 UPIT expr COLON expr | expr2
 # expr2 -> expr2 OR expr3 | expr3
 # expr3 -> expr3 AND expr4 | expr4
-# expr4 -> expr4 PLUS term | expr4 MINUS term | term
-# term -> term PUTA fact | term DIV fact | fact
+# expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
+# term -> (fact PUTA)+ fact | (fact DIV)+ fact | fact     #TODO: implicitno množenje
 # fact -> fact DOT bot | bot
 # bot -> IME | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | cons | edb | dnaspec | datespec
 # unit -> MILIGRAM | GRAM | KILOGRAM
@@ -180,7 +180,7 @@ def miko(lex):
 # branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT
 # call -> (IME|READ|WRITE) OTV args? ZATV
 # args -> expr COMMA args | expr
-# dnaspec -> TODO
+# dnaspec -> DNASTART params+ DNAEND  #ovdje pojedina imena moraju biti iz {A,T,C,G}; to se provjerava tijekom parsiranja
 ## datespec -> DATUM timespec? | BROJ DOT BROJ DOT BROJ DOT timespec? #ovo bi bilo fleksibilnije pravilo s korisničke strane, ali opet izlazi van LL(1) okvira...
 # datespec -> DATUM timespec?
 # timespec -> BROJ COLON BROJ (COLON BROJ)? 
