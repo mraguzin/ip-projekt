@@ -45,14 +45,13 @@ class T(TipoviTokena):
     EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA, DOT = '=<>+-*/(){}[];:?,.'
     ASGN, NEQ, LE, GE = ':=', '!=', '<=', '>='
     AND, OR, NOT = 'and', 'or', 'not'
-    LET, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME = 'let', 'string', 'number', 'bool', 'fungus', 'tree', 'edibility',
+    LET, STRINGTYPE, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME = 'let', 'string', 'number', 'bool', 'fungus', 'tree', 'edibility',
     'dna', 'datetime' # ključne riječi
     DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible' #TODO
     SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #TODO: jel ovo ok?
     #https://en.wikipedia.org/wiki/Taxonomy_mnemonic   
     MILIGRAM, GRAM, KILOGRAM = 'mg', 'g', 'kg'
-    FUNCTION, RETURN = 'function', 'return'
-    CONTINUE, BREAK = 'continue', 'break'
+    FUNCTION = 'function'
     FOR, IF = 'for', 'if'
     TRUE, FALSE = 'true', 'false'
     SETPARAM = 'setParam'  #ovo je builtin funkcija koja služi interaktivnoj izmjeni/prilagodbi globalnihparametara evolucijskih operatora
@@ -64,10 +63,19 @@ class T(TipoviTokena):
     class MUTATION(Token): pass
     class CROSSING(Token): pass
     class SELECTION(Token): pass
+    class RETURN(Token):
+        literal = 'return' #TODO
+    class CONTINUE(Token):
+        literal = 'continue'
+    class BREAK(Token):
+        literal = 'break'
     class BROJ(Token):
         def vrijednost(self):
             return float(self.sadržaj)
-    class IME(Token): pass
+    class IME(Token):
+        def vrijednost(self):
+            symtab = get_symtab(self)
+            return symtab[self]
     class STRING(Token):
         def vrijednost(self):
             ret = ''
@@ -176,9 +184,9 @@ def miko(lex):
 
 ## BKG:
 # start -> (stmt | fun)+
-# type -> (STRING | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
+# type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
 # decl -> LET IME | LET asgn
-# asgn -> IME ASGN expr
+# asgn -> IME ASGN expr         #TODO: fale genetski operatori, <, >, <=, >=, = i !=
 # expr -> expr2 UPIT expr COLON expr | expr2
 # expr2 -> expr2 OR expr3 | expr3
 # expr3 -> expr3 AND expr4 | expr4
@@ -194,7 +202,8 @@ def miko(lex):
 # stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI |## asgn SEMI
 # stmt2 -> CONTINUE SEMI | BREAK SEMI | stmt
 # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
-# branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT
+# branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV stmt ELSE stmt | IF OTV expr ZATV
+# TODO: fali else grana!
 # call -> (IME|READ|WRITE|SETPARAM) OTV args? ZATV
 # args -> (expr COMMA)+ expr | expr
 ## datespec -> DATUM timespec? | BROJ DOT BROJ DOT BROJ DOT timespec? #ovo bi bilo fleksibilnije pravilo s korisničke strane, ali opet izlazi van LL(1) okvira...
@@ -205,13 +214,28 @@ def miko(lex):
 #Parser bi trebao biti dvoprolazni radi lakšeg rada s pozivima funkcija za korisnike: program se izvodi kao Python skripta, dakle  kod može biti u globalnom
 #scopeu i otamo pozivati štogod je definirano bilo gdje drugdje (uključujući i interne funkcije tj. konstrukture tipova i read+write). Ali vepar nam baš
 #ne olakšava takav dizajn, pa je za sada ovo klasični jednoprolazni parser i stoga sve na što se referiramo mora biti već viđeno
+
+def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li trenutno deklariran symbol; trenutno ne podržavamo ugnježđavanje funkcijskuh
+    # blokova, pa je max.dubina stoga 2 (globalan i funkcijski scope)
+    for i in range(len(rt.symtab)-1, 0, -1):
+        if symbol in rt.symtab[i]:
+            return True
+        
+    return False
+
+def get_symtab(symbol):
+    for i in range(len(rt.symtab)-1, 0, -1):
+        if symbol in rt.symtab[i]:
+            return rt.symtab[i]
+
 class P(Parser):
     def start(p):
-        rt.symtab = Memorija()
+        rt.symtab = list() # želimo leksički scopeane varijable tj. funkcijski lokalne varijable su vidljive samo unutar funkcije ispod pozicije deklariranja
+        # i ne smiju se opetovano deklarirati u istoj funkciji; pri izlasku iz funkcije, parser zaboravlja sve njene lokalne varijable. Zato koristimo stog
         functions = []
         statements = []
 
-        while p.vidi():
+        while not p > KRAJ:
             if p > T.FUNCTION:
                 functions.append(p.fun())
             else:   
@@ -226,42 +250,56 @@ class P(Parser):
     def fun(p):
         p >> T.FUNCTION
         name = p >> T.IME
+        if is_in_symtable(name):
+            raise p.greška('Funkcija ' + name.sadržaj + ' je već definirana')
         params = []
         p >> T.OTV
         if not p >= T.ZATV:
             params = p.params()
             p >> T.ZATV
         p >> T.LVIT
+        rt.symtab.append(Memorija()) # push
         body = p.body()
+        rt.symtab.pop()
         p >> T.DVIT
-        rt.symtab[name] = Function(name, params, body)
-        return rt.symtab[name]
+        rt.symtab[-1][name] = Function(name, params, body)
+        return rt.symtab[-1][name]
 
     def params(p):
         names = [p >> T.IME]
         while p >= T.COMMA: names.append(p >> T.IME)
         return names
     
-    def body(p):
-        
+    def body(p): # TODO: fale op mutacije, selekcije i križanja!!
+        statements = []
+        while el := p > {T.RETURN, T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+            if el ^ T.RETURN: # TODO: izvrši() za RETURN token
+                statements.append(el)
+                p >> T.RETURN
+            else:
+                more = p.stmts()
+                #if len(more) == 0:
+                  #  raise p.greška('Očekivana naredba')
+                statements.append(*more)
 
+        return statements
 
     def stmts(p, more=True):
         elements = []
-        while el := p >= {T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        while el := p > {T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             if el ^ T.FOR:
                 elements.append(p.forloop())
             elif el ^ T.IF:
                 elements.append(p.branch())
             elif el ^ T.READ or el ^ T.WRITE or el ^ T.SETPARAM:
-                p >> T.SEMI
                 elements.append(p.call())
-            elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.TRUE or el ^ T.FALSE or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.STRING or el ^ T.NUMBER or el ^ T.BOOL or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.EDIBILITY or el ^ T.DNA or el ^ T.DATETIME or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM or el ^ T.LUGL:
+                p >> T.SEMI
+            elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.TRUE or el ^ T.FALSE or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.STRINGTYPE or el ^ T.NUMBER or el ^ T.BOOL or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.EDIBILITY or el ^ T.DNA or el ^ T.DATETIME or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM or el ^ T.LUGL:
                 p >> T.SEMI
                 elements.append(p.expr()) #tu su ubačeni i call za user-fun i naredbe pridruživanja; disambiguacija se događa tek u expr() (ne može prije jer LL(1))
             elif el ^ T.LET:
-                p >> T.SEMI
                 elements.append(p.decl())
+                p >> T.SEMI
             if not more:
                 break
         # ne hendlamo početni token za `asgn` ovdje jer je on početni i za `expr`; općenito, smatrat ćemo da su i dodjele izrazi, iako nama semantički nisu
@@ -272,7 +310,7 @@ class P(Parser):
     
     def stmts2(p, more=True):
         statements = []
-        while p > {T.LET, T.CONTINUE, T.BREAK, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        while p > {T.LET, T.CONTINUE, T.BREAK, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             if el := p >= {T.CONTINUE, T.BREAK}:
                 p >> T.SEMI
                 statements.append(el)
@@ -286,9 +324,10 @@ class P(Parser):
     def forloop(p):
         p >> T.FOR
         var = p >> T.IME
-        if var not in rt.symtab:
+        if not is_in_symtable(var):
             raise p.greška('Varijabla ' + var.sadržaj + ' nije definirana')
-        if rt.symtab[var] ^ Function:
+        symtab = get_symtab(var)
+        if symtab[var] ^ Function:
             raise p.greška('U for petlji je ime funkcije umjesto varijable')
         if p >= T.LVIT:
             stmts = p.stmts2()
@@ -299,7 +338,7 @@ class P(Parser):
             return ForLoop(var, stmt)
         
         # branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT
-    def branch(p):
+    def branch(p): # TODO: dopuni ovo!
         p >> T.IF
         p >> T.OTV
         test = p.expr()
@@ -310,22 +349,27 @@ class P(Parser):
             return Branch(test, stmts)
         else:
             stmt = p.stmt(False)
-            return Branch(var, stmt)
+            return Branch(test, stmt)
         
         # call -> (IME|READ|WRITE|SETPARAM) OTV args? ZATV
     def call(p):
         fun = None
         if fun := p >= T.IME:
-            if fun not in rt.symtab:
+            if not is_in_symtable(fun):
                 raise p.greška('Funkcija ' + fun.sadržaj + ' nije definirana')
-            if not rt.symtab[fun] ^ Function:
+            symtab = get_symtab(fun)
+            if not symtab[fun] ^ Function:
                 raise p.greška('Očekivana funkcija za poziv')
+            fun = symtab[fun]
         else: 
             fun = p >> {T.READ, T.WRITE, T.SETPARAM}
+        
         p >> T.OTV
         args = []
-        if p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        if p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
+        fun.validate_call(args)
+        p >> T.ZATV
         return Call(fun, args)
     
     # expr -> expr2 UPIT expr COLON expr | expr2
@@ -370,30 +414,89 @@ class P(Parser):
     def fact(p):
         bots = [p.bot()]
         while p >= T.DOT: bots.append(p.bot())
-        return List(bots)
+        return DotList(bots)
     
     # bot -> IME (ASGN expr)? | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb | datespec | list
+    # cons -> type OTV args? ZATV   # konstruktori za builtin tipove
+    # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
     def bot(p):
         if var := p > T.IME:
-            if var not in rt.symtab:
+            if not is_in_symtable(var):
                 raise p.greška('Ime ' + var.sadržaj + ' nije viđeno do sada')
-            if rt.symtab[var] ^ Function: # ovo mora biti poziv funkcije 'var'
+            symtab = get_symtab(var)
+            if symtab[var] ^ Function: # ovo mora biti poziv funkcije 'var'
                 return p.call()
             else: # inače je čisto pridruživanje varijable ili čisto pojavljivanje varijable (po mogućnosti unutar složenijeg izraza)
                 if p >= T.ASGN:
                     return Assignment(var, p.expr())
                 else:
                     return var
+        elif num := p >= T.BROJ:
+            unit = p >= {T.MILIGRAM, T.GRAM, T.KILOGRAM}
+            return Number(num, unit)
+        elif literal := p >= {T.STRING, T.TRUE, T.FALSE}:
+            return Literal(literal)
+        elif op := p >= {T.MINUS, T.NOT}:
+            return Unary(op, p.bot())
+        elif p >= T.OTV:
+            subexpr = p.expr()
+            p >> T.ZATV
+            return subexpr
+        elif p > {T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME}:
+            return p.cons()
+        elif p > T.DATUM:
+            return p.datespec()
+        elif p > T.LUGL:
+            return p.list()
+        else:
+            return p.edb()
 # decl -> LET IME | LET asgn
+    def cons(p):
+        type = p >> {T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME}
+        p >> T.OTV
+        args = []
+        if p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+            args = p.args()   # TODO: dodati validatore za pozive konstruktora na baznim tipovima + validatore za pozive user funkcija
+        p >> T.ZATV
+        type.validate_call(args)
+        return ConstructorCall(type, args)
+    
+    def datespec(p):
+        date = p >> T.DATUM
+        minutes = 0
+        seconds = 0
+        if hour := p >= T.BROJ:
+            p >> T.COLON
+            minutes = p >> T.BROJ
+            if p >= T.COLON:
+                seconds = p >> T.BROJ
+            return DateTime(date, hour, minutes, seconds)
+        else:
+            return Date(date)
+
+    def list(p):
+        p >> T.LUGL
+        if not p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+            return List([])
+        exprs = [p.expr()]
+        while p >= T.COMMA: exprs.append(p.expr())
+        return List(exprs)
+    
+    def edb(p):
+        kind = p >> {T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE}
+        return Edibility(kind)
+
     def decl(p):
         p >> T.LET
         var = p >> T.IME
-        rt.symtab[var] = var
+        if is_in_symtable(var):
+            raise p.greška('Varijabla ' + var.sadržaj + ' je već deklarirana u ovom dosegu')
+        rt.symtab[-1][var] = var
 
         if p >= T.ASGN:
             return Assignment(var, p.expr())
         else:
-            return var
+            return Declaration(var)
 
     def args(p):
         exprs = [p.expr()]
@@ -403,5 +506,79 @@ class P(Parser):
         
             
 
+class Program(AST):
+    statements: ...
+    functions: ...
 
+class Function(AST):
+    name: ...
+    parameter_names: ...
+    body: ...
+
+class Statements(AST):
+    statements: ...
+
+class ForLoop(AST):
+    loop_variable: ...
+    body_statements: ...
+
+class Branch(AST):
+    test_variable: ...
+    branch1_statements: ...
+    branch2_statements: ...
+
+class Call(AST):
+    function: ...
+    arguments: ...
+
+class Ternary(AST):
+    left_expr: ...
+    middle_expr: ...
+    right_expr: ...
+
+class Binary(AST):
+    op: ...
+    left: ...
+    right: ...
+
+class Unary(AST):
+    op: ...
+    child: ...
+
+class Nary(AST):
+    pairs: ... # (op,expr) pairs
+
+class DotList(AST):
+    elements: ...
+
+class Assignment(AST):
+    variable: ...
+    expression: ...
+
+class Number(AST):
+    value: ...
+    unit: ...
+
+class Literal(AST):
+    value: ...
+
+class ConstructorCall(AST):
+    type: ...
+    arguments: ...
+
+class Date(AST):
+    date: ... #(day,month,year) triple
+
+class DateTime(Date):
+    hours: ...
+    minutes: ...
+    seconds: ...
+
+class List(DotList): pass
+
+class Edibility(AST):
+    kind: ...
+
+class Declaration(AST):
+    variable: ...
 
