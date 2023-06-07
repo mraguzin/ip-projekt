@@ -59,7 +59,7 @@ class T(TipoviTokena):
     # populacijski rezultati kroz simulirane generacije gljiva. Sami parametri nisu hardkodirani u jeziku; predaju se kao stringovi i interpreter
     # je dužan nositi se s njima kako spada.
 
-    class DOT(Token): pass
+    #class DOT(Token): pass
     class MUTATION(Token): pass
     class CROSSING(Token): pass
     class SELECTION(Token): pass
@@ -178,6 +178,14 @@ def miko(lex):
         else:
             yield lex.literal_ili(alias[lex.sadržaj])
 
+class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanje nađe u izlazu; to ne možemo direktno predstaviti u LL(1) gramatici """
+
+    # * operator mutacije dodjeljenog DNA. Npr. ⥼fungus; specificira da se gljiva 'fungus' mutira po konfiguriranoj distribuciji (pri njenoj konstrukciji)
+    # (https://en.wikipedia.org/wiki/Genetic_operator)
+    # (https://archive.org/details/geneticprogrammi0000koza/page/n13/mode/2up)
+    # * operator križanja. Npr. fungus1 ⊗ fungus2; obavlja križanje dvije gljive i vraća njihovo "dijete"
+    # * operator selekcije. Npr. [fungus1,fungus2,fungus3]⊙; 
+
 #imamo tipove: string, number, bool, fungus, tree, edibility, dna, datetime
 #AUTO, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME
     #DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible'
@@ -187,9 +195,14 @@ def miko(lex):
 # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
 # decl -> LET IME | LET asgn
 # asgn -> IME ASGN expr         #TODO: fale genetski operatori, <, >, <=, >=, = i !=
-# expr -> expr2 UPIT expr COLON expr | expr2
+# expr -> cross UPIT expr COLON expr | cross
+# cross -> cross CROSSING sel | sel
+# sel -> sel SELECTION | mut
+# mut -> MUTATION mut | expr2
 # expr2 -> expr2 OR expr3 | expr3
-# expr3 -> expr3 AND expr4 | expr4
+# expr3 -> expr3 AND expr5 | expr5
+# expr5 -> expr5 EQ expr6 | expr5 NEQ expr6 | expr6
+# expr6 -> expr6 LT expr4 | expr6 LE expr4 | expr6 GT expr4 | expr6 GE expr4 | expr4
 # expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
 # term -> (fact PUTA)+ fact | (fact DIV)+ fact | fact     #TODO: implicitno množenje
 # fact -> (bot DOT)+ bot | bot
@@ -202,14 +215,15 @@ def miko(lex):
 # stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI |## asgn SEMI
 # stmt2 -> CONTINUE SEMI | BREAK SEMI | stmt
 # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
-# branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV stmt ELSE stmt | IF OTV expr ZATV
-# TODO: fali else grana!
+# branch -> IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV LVIT stmt* DVIT ELSE LVIT stmt* DVIT
 # call -> (IME|READ|WRITE|SETPARAM) OTV args? ZATV
 # args -> (expr COMMA)+ expr | expr
 ## datespec -> DATUM timespec? | BROJ DOT BROJ DOT BROJ DOT timespec? #ovo bi bilo fleksibilnije pravilo s korisničke strane, ali opet izlazi van LL(1) okvira...
 # datespec -> DATUM timespec?
 # timespec -> BROJ COLON BROJ (COLON BROJ)? 
 # edb -> DEADLY | TOXIC1 | TOXIC2 | EDIBLE
+
+#TODO: sredi da konstrukcija AST-a za operatore baci grešku ako se u bilo kojem podizrazu javi pridruživanje
 
 #Parser bi trebao biti dvoprolazni radi lakšeg rada s pozivima funkcija za korisnike: program se izvodi kao Python skripta, dakle  kod može biti u globalnom
 #scopeu i otamo pozivati štogod je definirano bilo gdje drugdje (uključujući i interne funkcije tj. konstrukture tipova i read+write). Ali vepar nam baš
@@ -223,10 +237,15 @@ def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li 
         
     return False
 
+def is_function_defined(symbol):
+    if symbol in rt.symtab[0]:
+        return True
+    return False
+
 def get_symtab(symbol):
     for i in range(len(rt.symtab)-1, 0, -1):
         if symbol in rt.symtab[i]:
-            return rt.symtab[i]
+            return i, rt.symtab[i]
 
 class P(Parser):
     def start(p):
@@ -295,8 +314,8 @@ class P(Parser):
                 elements.append(p.call())
                 p >> T.SEMI
             elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.TRUE or el ^ T.FALSE or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.STRINGTYPE or el ^ T.NUMBER or el ^ T.BOOL or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.EDIBILITY or el ^ T.DNA or el ^ T.DATETIME or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM or el ^ T.LUGL:
-                p >> T.SEMI
                 elements.append(p.expr()) #tu su ubačeni i call za user-fun i naredbe pridruživanja; disambiguacija se događa tek u expr() (ne može prije jer LL(1))
+                p >> T.SEMI
             elif el ^ T.LET:
                 elements.append(p.decl())
                 p >> T.SEMI
@@ -326,7 +345,7 @@ class P(Parser):
         var = p >> T.IME
         if not is_in_symtable(var):
             raise p.greška('Varijabla ' + var.sadržaj + ' nije definirana')
-        symtab = get_symtab(var)
+        idx, symtab = get_symtab(var)
         if symtab[var] ^ Function:
             raise p.greška('U for petlji je ime funkcije umjesto varijable')
         if p >= T.LVIT:
@@ -355,9 +374,9 @@ class P(Parser):
     def call(p):
         fun = None
         if fun := p >= T.IME:
-            if not is_in_symtable(fun):
+            if not is_function_defined(fun): # koristimo ovu zasebnu funkciju za funkcijske simbole jer oni moraju biti samo u globalnom scopeu
                 raise p.greška('Funkcija ' + fun.sadržaj + ' nije definirana')
-            symtab = get_symtab(fun)
+            idx, symtab = get_symtab(fun)
             if not symtab[fun] ^ Function:
                 raise p.greška('Očekivana funkcija za poziv')
             fun = symtab[fun]
@@ -372,12 +391,14 @@ class P(Parser):
         p >> T.ZATV
         return Call(fun, args)
     
-    # expr -> expr2 UPIT expr COLON expr | expr2
+# cross -> cross CROSSING sel | sel
+# sel -> sel SELECTION | mut
+# mut -> MUTATION mut | expr2
 # expr2 -> expr2 OR expr3 | expr3
-# expr3 -> expr3 AND expr4 | expr4
+# expr3 -> expr3 AND expr5 | expr5
+# expr5 -> expr5 EQ expr6 | expr5 NEQ expr6 | expr6
+# expr6 -> expr6 LT expr4 | expr6 LE expr4 | expr6 GT expr4 | expr6 GE expr4 | expr4
 # expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
-# term -> (fact PUTA)+ fact | (fact DIV)+ fact | fact     #TODO: implicitno množenje
-# fact -> fact DOT bot | bot
 
     def expr(p):
         left = p.expr2()
@@ -385,6 +406,8 @@ class P(Parser):
             middle = p.expr()
             p >> T.COLON
             right = p.expr()
+            if middle ^ Assignment or right ^ Assignment:
+                raise GreškaPridruživanja
             return Ternary(left, middle, right)
         else:
             return left
@@ -393,28 +416,51 @@ class P(Parser):
         tree = p.expr3()
         while op := p >= T.OR:
             tree = Binary(op, tree, p.expr3())
+            if tree.right ^ Assignment:
+                raise GreškaPridruživanja
+            #if tree.right ^ Nary:
+                #if tree.right[0][1][0][1][0] ^ Assignment:
+                #    raise GreškaPridruživanja
+
         return tree
     
     def expr3(p):
         tree = p.expr4()
         while op := p >= T.AND:
             tree = Binary(op, tree, p.expr4())
+            #if tree.right[0][1][0][1][0] ^ Assignment:
+            if tree.right ^ Assignment:
+                raise GreškaPridruživanja
         return tree
     
     def expr4(p):
         terms = [[T.PLUS, p.term()]]
-        while op := p >= {T.PLUS, T.MINUS}: terms.append([op, p.term()])
+        while op := p >= {T.PLUS, T.MINUS}:
+            if terms[-1][1] ^ Assignment:
+                raise GreškaPridruživanja
+            terms.append([op, p.term()])
+        if len(terms) == 1:
+            return terms[0][1]
         return Nary(terms)
     
     def term(p):
         facts = [[T.PUTA, p.fact()]]
-        while op := p >= {T.PUTA, T.DIV}: facts.append([op, p.fact()])
+        while op := p >= {T.PUTA, T.DIV}:
+            if facts[-1][1] ^ Assignment:
+                raise GreškaPridruživanja
+            facts.append([op, p.fact()])
+        if len(facts) == 1:
+            return facts[0][1]
         return Nary(facts)
     
     def fact(p):
         bots = [p.bot()]
-        while p >= T.DOT: bots.append(p.bot())
-        return DotList(bots)
+        while p >= T.DOT: 
+            if bots[-1] ^ Assignment:
+                raise GreškaPridruživanja('Pridruživanje nije izraz') # tu detektiramo krive izraze;
+            #ovo se radi kad god može biti više operanada jer to onda ne može biti pridruživanje (koje jest jedan jedini pseudoizraz)
+            bots.append(p.bot())
+        return DotList.ili_samo(bots)
     
     # bot -> IME (ASGN expr)? | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb | datespec | list
     # cons -> type OTV args? ZATV   # konstruktori za builtin tipove
@@ -423,7 +469,7 @@ class P(Parser):
         if var := p > T.IME:
             if not is_in_symtable(var):
                 raise p.greška('Ime ' + var.sadržaj + ' nije viđeno do sada')
-            symtab = get_symtab(var)
+            idx, symtab = get_symtab(var)
             if symtab[var] ^ Function: # ovo mora biti poziv funkcije 'var'
                 return p.call()
             else: # inače je čisto pridruživanje varijable ili čisto pojavljivanje varijable (po mogućnosti unutar složenijeg izraza)
@@ -490,7 +536,9 @@ class P(Parser):
         p >> T.LET
         var = p >> T.IME
         if is_in_symtable(var):
-            raise p.greška('Varijabla ' + var.sadržaj + ' je već deklarirana u ovom dosegu')
+            idx, symtab = get_symtab(var)
+            if idx == len(rt.symtab) - 1: # ne skrivamo vanjsku varijablu već je redeklariramo unutar istog scopea, što ne dozvoljavamo
+                raise p.greška('Varijabla ' + var.sadržaj + ' je već deklarirana u ovom dosegu')
         rt.symtab[-1][var] = var
 
         if p >= T.ASGN:
