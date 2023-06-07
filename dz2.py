@@ -20,7 +20,8 @@ standardne aritmetičke i logičke operatore iz C-a (uključujući i ternarni). 
     Sa hijerarhijama se *ne može* raditi izvan varijabli, tj. one ne mogu biti literali (unose se peacemeal)!
     * operator dodavanja novog elementa hijerarhije u već postojeću: ako je hijerarhija u varijabli 'hij', onda hij.fam = 'famxyz';
     mijenja (ili dodaje, ako familija nije prethodno bila dodijeljena) 'famxyz' kao novu familiju hijerarhije 'hij'.
-    * *svi* objekti su imutabilni na razini jezika, ali kompletno mutabilni u smislu genetskih operatora koji se nad njima mogu izvoditi
+    * _svi_ objekti (osim taksonomija)
+      su imutabilni na razini jezika, ali kompletno mutabilni u smislu genetskih operatora koji se nad njima mogu izvoditi
     
     
 Aritmetički izrazi ovdje služe kako bi manipulirali onim podacima gljive koji su brojevi i koji onda služe za definiciju pojedine gljive. Dakle, sveukupno
@@ -46,11 +47,15 @@ class T(TipoviTokena):
     ASGN, NEQ, LE, GE = ':=', '!=', '<=', '>='
     AND, OR, NOT = 'and', 'or', 'not'
     LET, STRINGTYPE, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME = 'let', 'string', 'number', 'bool', 'fungus', 'tree', 'edibility',
-    'dna', 'datetime' # ključne riječi
-    DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible' #TODO
-    SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #TODO: jel ovo ok?
+    'dna', 'datetime' # način za eksplicitno deklarirati varijablu nekog builtin tipa npr. number(12) je ekviv. 12. Zagrade su obvezne pri konstrukciji!
+    DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible'
+    #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #
+    #^^ovo ne mogu biti zasebni tokeni jer mi statički ne možemo odrediti tip varijable pa da možemo pri parsiranju validirati je li ok pristupanje članovima
+    #taksonomijskih objekata (ovo je "dynamically typed language"); koristit ćemo ova posebna *imena* pri izvršavanju, kada znamo da je element
+    #kojem se pristupa točka-izrazom upravo tog tipa
     #https://en.wikipedia.org/wiki/Taxonomy_mnemonic   
-    MILIGRAM, GRAM, KILOGRAM = 'mg', 'g', 'kg'
+    MILIGRAM, GRAM, KILOGRAM = 'mg', 'g', 'kg' # jedinice, mogu se koristiti nakon brojeva; jezik podržava pravilno računanje i javlja grešku
+    # pri izvođenju ako je u računu s dimenzijama neki element bez eksplicitno navedene jedinice
     FUNCTION = 'function'
     FOR, IF = 'for', 'if'
     TRUE, FALSE = 'true', 'false'
@@ -194,7 +199,7 @@ class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanj
 # start -> (stmt | fun)+
 # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
 # decl -> LET IME | LET asgn
-# asgn -> IME ASGN expr         #TODO: fale genetski operatori, <, >, <=, >=, = i !=
+# asgn -> IME ASGN expr
 # expr -> cross UPIT expr COLON expr | cross
 # cross -> cross CROSSING sel | sel
 # sel -> sel SELECTION | mut
@@ -215,15 +220,13 @@ class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanj
 # stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI |## asgn SEMI
 # stmt2 -> CONTINUE SEMI | BREAK SEMI | stmt
 # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
-# branch -> IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV LVIT stmt* DVIT ELSE LVIT stmt* DVIT
+# branch -> IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV LVIT stmt* DVIT ELSE LVIT stmt* DVIT  #izbjegavamo dangling else problem s obveznim {}
 # call -> (IME|READ|WRITE|SETPARAM) OTV args? ZATV
 # args -> (expr COMMA)+ expr | expr
 ## datespec -> DATUM timespec? | BROJ DOT BROJ DOT BROJ DOT timespec? #ovo bi bilo fleksibilnije pravilo s korisničke strane, ali opet izlazi van LL(1) okvira...
 # datespec -> DATUM timespec?
 # timespec -> BROJ COLON BROJ (COLON BROJ)? 
 # edb -> DEADLY | TOXIC1 | TOXIC2 | EDIBLE
-
-#TODO: sredi da konstrukcija AST-a za operatore baci grešku ako se u bilo kojem podizrazu javi pridruživanje
 
 #Parser bi trebao biti dvoprolazni radi lakšeg rada s pozivima funkcija za korisnike: program se izvodi kao Python skripta, dakle  kod može biti u globalnom
 #scopeu i otamo pozivati štogod je definirano bilo gdje drugdje (uključujući i interne funkcije tj. konstrukture tipova i read+write). Ali vepar nam baš
@@ -289,9 +292,9 @@ class P(Parser):
         while p >= T.COMMA: names.append(p >> T.IME)
         return names
     
-    def body(p): # TODO: fale op mutacije, selekcije i križanja!!
+    def body(p):
         statements = []
-        while el := p > {T.RETURN, T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        while el := p > {T.MUTATION, T.RETURN, T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             if el ^ T.RETURN: # TODO: izvrši() za RETURN token
                 statements.append(el)
                 p >> T.RETURN
@@ -305,7 +308,7 @@ class P(Parser):
 
     def stmts(p, more=True):
         elements = []
-        while el := p > {T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        while el := p > {T.MUTATION, T.LET, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRING, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             if el ^ T.FOR:
                 elements.append(p.forloop())
             elif el ^ T.IF:
@@ -313,7 +316,7 @@ class P(Parser):
             elif el ^ T.READ or el ^ T.WRITE or el ^ T.SETPARAM:
                 elements.append(p.call())
                 p >> T.SEMI
-            elif el ^ T.IME or el ^ T.BROJ or el ^ T.STRING or el ^ T.TRUE or el ^ T.FALSE or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.STRINGTYPE or el ^ T.NUMBER or el ^ T.BOOL or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.EDIBILITY or el ^ T.DNA or el ^ T.DATETIME or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM or el ^ T.LUGL:
+            elif el ^ T.IME or el ^ T.MUTATION or el ^ T.BROJ or el ^ T.STRING or el ^ T.TRUE or el ^ T.FALSE or el ^ T.MINUS or el ^ T.NOT or el ^ T.OTV or el ^ T.STRINGTYPE or el ^ T.NUMBER or el ^ T.BOOL or el ^ T.FUNGUS or el ^ T.TREE or el ^ T.EDIBILITY or el ^ T.DNA or el ^ T.DATETIME or el ^ T.DEADLY or el ^ T.TOXIC1 or el ^ T.TOXIC2 or el ^ T.EDIBLE or el ^ T.DATUM or el ^ T.LUGL:
                 elements.append(p.expr()) #tu su ubačeni i call za user-fun i naredbe pridruživanja; disambiguacija se događa tek u expr() (ne može prije jer LL(1))
                 p >> T.SEMI
             elif el ^ T.LET:
@@ -329,7 +332,7 @@ class P(Parser):
     
     def stmts2(p, more=True):
         statements = []
-        while p > {T.LET, T.CONTINUE, T.BREAK, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        while p > {T.MUTATION, T.LET, T.CONTINUE, T.BREAK, T.FOR, T.IF, T.READ, T.WRITE, T.SETPARAM, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             if el := p >= {T.CONTINUE, T.BREAK}:
                 p >> T.SEMI
                 statements.append(el)
@@ -356,19 +359,24 @@ class P(Parser):
             stmt = p.stmts2(False)
             return ForLoop(var, stmt)
         
-        # branch -> IF OTV expr ZATV stmt | IF OTV expr ZATV LVIT stmt* DVIT
-    def branch(p): # TODO: dopuni ovo!
+# branch -> IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV LVIT stmt* DVIT ELSE LVIT stmt* DVIT
+    def branch(p):
         p >> T.IF
         p >> T.OTV
         test = p.expr()
+        if not test ^ Binary or not test.op ^ T.LT or not test.op ^ T.LE or not test.op ^ T.GT or not test.op ^ T.GE or not test.op ^ T.EQ or not test.op ^ T.NEQ:
+            raise SemantičkaGreška('Uvjeti za grananje moraju biti bool izrazi')
         p >> T.ZATV
-        if p >= T.LVIT:
-            stmts = p.stmts()
+        p >> T.LVIT
+        branch1 = p.stmts()
+        p >> T.DVIT
+        if p >= T.ELSE:
+            p >> T.LVIT
+            branch2 = p.stmts()
             p >> T.DVIT
-            return Branch(test, stmts)
+            return ComplexBranch(test, branch1, branch2)
         else:
-            stmt = p.stmt(False)
-            return Branch(test, stmt)
+            return SimpleBranch(test, branch1)
         
         # call -> (IME|READ|WRITE|SETPARAM) OTV args? ZATV
     def call(p):
@@ -385,23 +393,20 @@ class P(Parser):
         
         p >> T.OTV
         args = []
-        if p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
         fun.validate_call(args)
         p >> T.ZATV
         return Call(fun, args)
     
+# expr -> cross UPIT expr COLON expr | cross
 # cross -> cross CROSSING sel | sel
 # sel -> sel SELECTION | mut
 # mut -> MUTATION mut | expr2
 # expr2 -> expr2 OR expr3 | expr3
-# expr3 -> expr3 AND expr5 | expr5
-# expr5 -> expr5 EQ expr6 | expr5 NEQ expr6 | expr6
-# expr6 -> expr6 LT expr4 | expr6 LE expr4 | expr6 GT expr4 | expr6 GE expr4 | expr4
-# expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
 
     def expr(p):
-        left = p.expr2()
+        left = p.cross()
         if p >= T.UPIT:
             middle = p.expr()
             p >> T.COLON
@@ -411,6 +416,25 @@ class P(Parser):
             return Ternary(left, middle, right)
         else:
             return left
+        
+    def cross(p):
+        tree = p.sel()
+        while op := p >= T.CROSSING:
+            tree = Binary(op, tree, p.sel())
+            if tree.right ^ Assignment:
+                raise GreškaPridruživanja
+        return tree
+    
+    def sel(p):
+        tree = p.mut()
+        if op := p >= T.SELECTION:
+            return Unary(op, tree)
+        return tree
+    
+    def mut(p):
+        if op := p >> T.MUTATION:
+            return Unary(op, p.mut())
+        return p.expr2()
         
     def expr2(p):
         tree = p.expr3()
@@ -424,11 +448,32 @@ class P(Parser):
 
         return tree
     
+# expr3 -> expr3 AND expr5 | expr5
+# expr5 -> expr5 EQ expr6 | expr5 NEQ expr6 | expr6
+# expr6 -> expr6 LT expr4 | expr6 LE expr4 | expr6 GT expr4 | expr6 GE expr4 | expr4
+# expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
+    
     def expr3(p):
-        tree = p.expr4()
+        tree = p.expr5()
         while op := p >= T.AND:
-            tree = Binary(op, tree, p.expr4())
+            tree = Binary(op, tree, p.expr5())
             #if tree.right[0][1][0][1][0] ^ Assignment:
+            if tree.right ^ Assignment:
+                raise GreškaPridruživanja
+        return tree
+    
+    def expr5(p):
+        tree = p.expr6()
+        while op := p >= {T.EQ, T.NEQ}:
+            tree = Binary(op, tree, p.expr6())
+            if tree.right ^ Assignment:
+                raise GreškaPridruživanja
+        return tree
+    
+    def expr6(p):
+        tree = p.expr4()
+        while op := p >= {T.LT, T.LE, T.GT, T.GE}:
+            tree = Binary(op, tree, p.expr4())
             if tree.right ^ Assignment:
                 raise GreškaPridruživanja
         return tree
@@ -509,6 +554,7 @@ class P(Parser):
     
     def datespec(p):
         date = p >> T.DATUM
+        date.validiraj() # je li ovo ok datum, čisto sintaktički?
         minutes = 0
         seconds = 0
         if hour := p >= T.BROJ:
@@ -570,9 +616,11 @@ class ForLoop(AST):
     loop_variable: ...
     body_statements: ...
 
-class Branch(AST):
+class SimpleBranch(AST):
     test_variable: ...
     branch1_statements: ...
+
+class ComplexBranch(SimpleBranch):
     branch2_statements: ...
 
 class Call(AST):
