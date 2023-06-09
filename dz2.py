@@ -325,10 +325,8 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
             if tree.op ^ T.MINUS:
                 return True
             return False
-        elif tree ^ Binary:
-            if tree.op ^ {T.PLUS, T.MINUS, T.PUTA, T.DIV, T.EQ, T.NEQ, T.LE, T.LT, T.GE, T.GT}:
-                return True
-            return False
+        elif tree ^ Nary and tree.pairs[0][0] ^ {T.PLUS, T.MINUS, T.PUTA, T.DIV}:
+            return True
         elif tree ^ {Number, T.IME, Call}: # TODO: pripazi ovdje na datume i vrijeme --- i oni moraju moći biti u izrazima...
             return True
         elif tree ^ ConstructorCall and not tree.type ^ T.NUMBER:
@@ -346,10 +344,8 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
 def is_datetime(tree):
         if tree ^ Unary:
             return False
-        elif tree ^ Binary:
-            if tree.op ^ T.MINUS:
-                return True
-            return False
+        elif tree ^ Nary and tree.pairs[0][0] ^ T.MINUS:
+            return True
         elif tree ^ {Date, DateTime, T.IME, Call}:
             return True
         elif tree ^ ConstructorCall and not tree.type ^ T.DATETIME:
@@ -364,10 +360,8 @@ def is_datetime(tree):
 def is_stringetic(tree):
     if tree ^ Unary:
         return False
-    elif tree ^ Binary:
-        if tree.op ^ T.PLUS:
-            return True
-        return False
+    elif tree ^ Nary and tree.pairs[0][0] ^ T.PLUS:
+        return True
     elif tree ^ Literal and tree.value ^ T.STRING:
         return True
     elif tree ^ List:
@@ -376,7 +370,7 @@ def is_stringetic(tree):
                 return False
         return True
     elif tree ^ {T.IME, Call}:
-            return None
+            return True
     elif tree ^ ConstructorCall and not tree.type ^ T.STRINGTYPE:
         raise SemantičkaGreška('Očekivan konstruktor stringa')
     return False
@@ -387,7 +381,7 @@ def is_boolean(tree):
             return True
         return False
     elif tree ^ Binary:
-        if tree.op ^ {T.AND, T.OR, T.EQ, T.NEQ}:
+        if tree.op ^ {T.AND, T.OR, T.EQ, T.NEQ, T.LE, T.LT, T.GE, T.GT}:
             return True
         return False
     elif tree ^ Literal and tree.value ^ {T.TRUE, T.FALSE}:
@@ -595,16 +589,23 @@ class P(Parser):
             tree = Binary(op, tree, p.sel())
             if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
+            if not is_fungus(tree):
+                raise SemantičkaGreška('Samo se liste gljiva mogu križati')
         return tree
     
     def sel(p):
         tree = p.mut()
         if op := p >= T.SELECTION:
+            if not is_fungus(tree):
+                raise SemantičkaGreška('Samo se liste gljiva mogu selektirati')
             return Unary(op, tree)
         return tree
     
     def mut(p):
         if op := p >> T.MUTATION:
+            tmp = p.mut()
+            if not is_fungus(tmp):
+                raise SemantičkaGreška('Samo se gljive ili njihove liste mogu mutirati')
             return Unary(op, p.mut())
         return p.expr2()
         
@@ -614,9 +615,10 @@ class P(Parser):
             tree = Binary(op, tree, p.expr3())
             if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
-            #if tree.right ^ Nary:
-                #if tree.right[0][1][0][1][0] ^ Assignment:
-                #    raise GreškaPridruživanja
+            if not is_boolean(tree.left) or not is_boolean(tree.right):
+                raise SemantičkaGreška('Logičke operacije podržane samo nad boolean izrazima/vrijednostima')
+            if tree.left ^ List or tree.right ^ List:
+                raise SemantičkaGreška('Liste se ne mogu uspoređivati') 
 
         return tree
     
@@ -629,17 +631,24 @@ class P(Parser):
         tree = p.expr5()
         while op := p >= T.AND:
             tree = Binary(op, tree, p.expr5())
-            #if tree.right[0][1][0][1][0] ^ Assignment:
             if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
+            if not is_boolean(tree.left) or not is_boolean(tree.right):
+                raise SemantičkaGreška('Logičke operacije podržane samo nad boolean izrazima/vrijednostima')
+            if tree.left ^ List or tree.right ^ List:
+                raise SemantičkaGreška('Liste se ne mogu uspoređivati') 
         return tree
     
     def expr5(p):
         tree = p.expr6()
         while op := p >= {T.EQ, T.NEQ}:
             tree = Binary(op, tree, p.expr6())
-            if tree.right ^ Assignment:
+            if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
+            if tree.left ^ List or tree.right ^ List:
+                raise SemantičkaGreška('Liste se ne mogu uspoređivati') #TODO: ovo bi mogli dopustiti, ali zahtijeva zasebno rekurzivno testiranje
+            #elemenata listi u typecheckeru...
+            
         return tree
     
     def expr6(p):   #TODO: bool typechecking here
@@ -648,6 +657,11 @@ class P(Parser):
             tree = Binary(op, tree, p.expr4())
             if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
+            if not is_arithmetic(tree.left) and not is_arithmetic(tree.right):
+                raise SemantičkaGreška('<, >, <= i >= su upotrebljivi samo nad brojevnim izrazima/vrijednostima')
+            if tree.left ^ List or tree.right ^ List:
+                raise SemantičkaGreška('Liste se ne mogu uspoređivati') #TODO: ovo bi mogli dopustiti, ali zahtijeva zasebno rekurzivno testiranje
+            #elemenata listi u typecheckeru...
         return tree
     
     def expr4(p):
@@ -669,45 +683,36 @@ class P(Parser):
                 if not arithmetic:
                     raise SemantičkaGreška('Konkatenacija stringa moguća samo s drugim stringom')
                 stringetic = False
-            if op ^ T.MINUS and stringetic:
-                raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
+            if op ^ T.MINUS:
+                if not arithmetic:
+                    raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
+                stringetic = False
             if terms[-1][1] ^ List:
-                if len is not None:
-                    if len != terms[-1][1].get_list_length():
-                        raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                else:
-                    len = terms[-1][1].get_list_length()
+                if len != terms[-1][1].get_list_length():
+                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
             terms.append([op, p.term()])
-        if terms[-1][1] ^ Assignment:
-            raise GreškaPridruživanja
         if len(terms) == 1:
             return terms[0][1]
-        else:
-            any_lists = False
-            # dopuštamo samo + nad stringovima, što uključuje i liste stringova. NIJE dozvoljen + nad stringom i brojem; nužno je eksplicitno konvertirati
-            for op,item in terms:
-                stringetic = is_stringetic(item)
-                arithmetic = is_arithmetic(item)
-                if item ^ List:
-                    any_lists = True
-            if arithmetic and stringetic: # TODO: ovdje treba rekurzivno testirati je li zaista aritmetički ili string izraz jer moguće da je bilo
-                #neodlučivo tj. statički nije ni je ni nije ni jedno ni drugo, ali za to nije dovoljno provjeriti samo jednu razinu izraza
-                raise SemantičkaGreška('Zbrajanje broja i stringa nije dopustivo; ako želite konkatenaciju, koristite string(brojevni izraz)')
-            if stringetic:
-                for op,ign in terms:
-                    if not op ^ T.PLUS:
-                        raise SemantičkaGreška('Samo zbrajanje (konkatenacija) je podržano nad stringovima')
-            if any_lists:
-                len = None
-                for ign,item in terms:
-                    tmp = item.get_list_length()
-                    if tmp != -2:
-                        if len is None:
-                            len = tmp
-                        else:
-                            if len != tmp:
-                                raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-
+        else: #TODO: bilo bi lijepo kada ne bi morali ponoviti cijeli ovaj blok ovdje... do while?
+            if terms[-1][1] ^ Assignment:
+                raise GreškaPridruživanja
+            if not arithmetic and not stringetic:
+                raise SemantičkaGreška('+ i - dozvoljeno samo nad brojevima i stringovima')
+            if not is_arithmetic(terms[-1][1]):
+                if not stringetic:
+                    raise SemantičkaGreška('Aritmetičke operacije s brojem mogu biti samo s drugim brojem')
+                arithmetic = False
+            if not is_stringetic(terms[-1][1]):
+                if not arithmetic:
+                    raise SemantičkaGreška('Konkatenacija stringa moguća samo s drugim stringom')
+                stringetic = False
+            if op ^ T.MINUS:
+                if not arithmetic:
+                    raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
+                stringetic = False
+            if terms[-1][1] ^ List:
+                if len != terms[-1][1].get_list_length():
+                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
         return Nary(terms)
     
     def term(p): #TODO: tu je nužan dodatan check na kraju (nije moguće ovdje prilikom izgradnje AST-a) koji provjerava konzistentnost rada s jedinicama
@@ -722,10 +727,10 @@ class P(Parser):
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
                 # ako se liste pojavljuju u množenju/dijeljenju, to je dopustivo i u proizvoljnoj kombinaciji sa skalarima, s prirodnom
                 # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine ("broadcasting")
-        if not is_arithmetic(facts[-1][1]):
-            raise SemantičkaGreška('Množenje i dijeljenje moguće samo s brojevnim operandima/listama')
         if len(facts) == 1:
             return facts[0][1]
+        if not is_arithmetic(facts[-1][1]):
+            raise SemantičkaGreška('Množenje i dijeljenje moguće samo s brojevnim operandima/listama')
         return Nary(facts)
     
     def fact(p):
