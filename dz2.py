@@ -19,17 +19,14 @@ standardne aritmetičke i logičke operatore iz C-a (uključujući i ternarni). 
     Sa hijerarhijama se *ne može* raditi izvan varijabli, tj. one ne mogu biti literali (unose se peacemeal)!
     * operator dodavanja novog elementa hijerarhije u već postojeću: ako je hijerarhija u varijabli 'hij', onda hij.fam = 'famxyz';
     mijenja (ili dodaje, ako familija nije prethodno bila dodijeljena) 'famxyz' kao novu familiju hijerarhije 'hij'.
-    * _svi_ objekti (osim taksonomija)
+    * _svi_ objekti (osim taksonomija, koje se jedino i mogu kompletno izgraditi preko . operatora)
       su imutabilni na razini jezika, ali kompletno mutabilni u smislu genetskih operatora koji se nad njima mogu izvoditi
     
     
 Aritmetički izrazi ovdje služe kako bi manipulirali onim podacima gljive koji su brojevi i koji onda služe za definiciju pojedine gljive. Dakle, sveukupno
 imamo tipove: string, number, bool, fungus, tree, edibility, dna, datetime
-* operator= je overloadan na prirodne načine za: string, number, bool, fungus (deep copy?), tree (deep copy), edibility, dna (shallow copy?),
+* operator= je overloadan na prirodne načine za: string, number, bool, fungus (shallow), tree (deep copy), edibility, dna (shallow),
 datetime (deep copy)
-
-*ALTERNATIVNI NAČINI PISANJA OPERATORA: mislim da baš i nema smisla da novi operatori imaju neki kratki simbolički zapis, ali možemo napraviti ovako:
-"dugi" zapis je npr. newtree, a "kratki" | ili nešto sl. 
 
 *FILE I/O: builtin funkcije read() i write(), praktički kao u Pythonu; read('datoteka') čita sve iz dane tekstualne datoteke i deserijalizira u
 naše interne strukture svakog od mogućih tipova. write('datoteka', obj1, obj2,...) serijalizira objekt 'obj' u danu
@@ -45,8 +42,8 @@ class T(TipoviTokena):
     EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA, DOT = '=<>+-*/(){}[];:?,.'
     ASGN, NEQ, LE, GE = ':=', '!=', '<=', '>='
     AND, OR, NOT = 'and', 'or', 'not'
-    LET, STRINGTYPE, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME = 'let', 'string', 'number', 'bool', 'fungus', 'tree', 'edibility',
-    'dna', 'datetime' # način za eksplicitno deklarirati varijablu nekog builtin tipa npr. number(12) je ekviv. 12. Zagrade su obvezne pri konstrukciji!
+    LET = 'let'
+    # način za eksplicitno deklarirati varijablu nekog builtin tipa npr. number(12) je ekviv. 12. Zagrade su obvezne pri konstrukciji!
     DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible'
     #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #
     #^^ovo ne mogu biti zasebni tokeni jer mi statički ne možemo odrediti tip varijable pa da možemo pri parsiranju validirati je li ok pristupanje članovima
@@ -67,6 +64,54 @@ class T(TipoviTokena):
     class MUTATION(Token): pass
     class CROSSING(Token): pass
     class SELECTION(Token): pass
+    class STRINGTYPE(Token): # ovo stavljamo ovdje radi mogućnosti provjera konstruktorskih argumenata
+        literal = 'string'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
+    class NUMBER(Token):
+        literal = 'number'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
+    class BOOL(Token):
+        literal = 'bool'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
+    class FUNGUS(Token):
+        literal = 'fungus'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
+    class TREE(Token):
+        literal = 'tree'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
+    class EDIBILITY(Token):
+        literal = 'edibility'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
+    class DNA(Token):
+        literal = 'dna'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
+    class DATETIME(Token):
+        literal = 'datetime'
+        def validate_call(self, *args):
+            if len(args) != 1:
+                return False
+            return True
     class RETURN(Token):
         literal = 'return' #TODO
     class CONTINUE(Token):
@@ -77,13 +122,13 @@ class T(TipoviTokena):
         def vrijednost(self):
             return float(self.sadržaj)
         def get_list_length(self):
-            return -1
+            return None
     class IME(Token):
         def vrijednost(self):
             symtab = get_symtab(self)
             return symtab[self]
         def get_list_length(self):
-            return -2
+            return None
     class STRING(Token):
         def vrijednost(self):
             ret = ''
@@ -106,7 +151,7 @@ class T(TipoviTokena):
                     i += 1
             return ret
         def get_list_length(self):
-            return -1
+            return None
     class DATUM(Token):
         def vrijednost(self):
             try:
@@ -115,7 +160,7 @@ class T(TipoviTokena):
                 raise SemantičkaGreška('Krivi format datuma')
             
         def get_list_length(self):
-            return -1
+            return None
         
         def validiraj(self):
             dijelovi = self.vrijednost()
@@ -127,14 +172,17 @@ class T(TipoviTokena):
     class READ(Token):
         literal = 'read'
         def validate_call(self, *args):
-            if len(args) != 0:
-                raise SintaksnaGreška('read funkcija ne prima argumente')
+            if len(args) != 1:
+                raise SintaksnaGreška('read funkcija očekuje jedan argument: ime tekstualne datoteke za pročitati')
         def get_list_length(self):
-            return -2
+            return None
     class WRITE(Token):
         literal = 'write'
+        def validate_call(self, *args):
+            if len(args) < 2:
+                raise SemantičkaGreška('write funkcija očekuje bar dva argumenta: 1:datoteku, 2: objekt, više objekata ili listu objekata za zapisati')
         def get_list_length(self):
-            return -1
+            return None
 
 alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
 
@@ -175,7 +223,6 @@ def miko(lex):
             yield lex.literal(T)
         elif znak == '<':
             lex >= '='
-            lex >= '-'
             yield lex.literal_ili(alias[lex.sadržaj])
         elif znak == '>':
             lex >= '='
@@ -196,7 +243,10 @@ def miko(lex):
         elif znak.isspace():
             lex.zanemari()
         else:
-            yield lex.literal_ili(alias[lex.sadržaj])
+            try:
+                yield lex.literal_ili(alias[lex.sadržaj])
+            except KeyError:
+                raise lex.greška()
 
 class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanje nađe u izlazu; to ne možemo direktno predstaviti u LL(1) gramatici """
 
@@ -212,7 +262,8 @@ class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanj
 
 ## BKG:
 # start -> (stmt | fun)+
-# type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
+# type -> STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME
+# nodna -> STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DATETIME
 # decl -> LET IME | LET asgn
 # asgn -> IME ASGN expr
 # expr -> cross UPIT expr COLON expr | cross
@@ -229,7 +280,7 @@ class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanj
 # bot -> IME (ASGN expr)? | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb | datespec | list
 # list -> LUGL args? DUGL
 # unit -> MILIGRAM | GRAM | KILOGRAM
-# cons -> type OTV args? ZATV   # konstruktori za builtin tipove
+# cons -> type OTV args? ZATV | DNA LUGL params DUGL | DNA OTV IME ZATV  # konstruktori za builtin tipove
 # fun -> FUNCTION IME OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
 # params -> (IME COMMA)+ IME | IME
 # stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI |## asgn SEMI
@@ -249,8 +300,9 @@ class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanj
 #Parser bi trebao biti dvoprolazni radi lakšeg rada s pozivima funkcija za korisnike: program se izvodi kao Python skripta, dakle  kod može biti u globalnom
 #scopeu i otamo pozivati štogod je definirano bilo gdje drugdje (uključujući i interne funkcije tj. konstrukture tipova i read+write). Ali vepar nam baš
 #ne olakšava takav dizajn, pa je za sada ovo klasični jednoprolazni parser i stoga sve na što se referiramo mora biti već viđeno
+# (sigurno ne želimo prototipove)
 
-def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li trenutno deklariran symbol; trenutno ne podržavamo ugnježđavanje funkcijskuh
+def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li trenutno deklariran symbol; ne podržavamo ugnježđavanje funkcijskih
     # blokova, pa je max.dubina stoga 2 (globalan i funkcijski scope)
     for i in range(len(rt.symtab)-1, 0, -1):
         if symbol in rt.symtab[i]:
@@ -259,7 +311,7 @@ def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li 
     return False
 
 def is_function_defined(symbol):
-    if symbol in rt.symtab[0]:
+    if symbol in rt.funtab:
         return True
     return False
 
@@ -274,18 +326,38 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
                 return True
             return False
         elif tree ^ Binary:
-            if tree.op ^ {T.PLUS, T.MINUS, T.PUTA, T.DIV}:
+            if tree.op ^ {T.PLUS, T.MINUS, T.PUTA, T.DIV, T.EQ, T.NEQ, T.LE, T.LT, T.GE, T.GT}:
                 return True
             return False
-        elif tree ^ Number or tree ^ Date or tree ^ DateTime or tree ^ T.IME: # TODO: pripazi ovdje na datume i vrijeme --- i oni moraju moći biti u izrazima...
+        elif tree ^ {Number, T.IME, Call}: # TODO: pripazi ovdje na datume i vrijeme --- i oni moraju moći biti u izrazima...
             return True
-        elif tree ^ List: 
-            # liste mogu sudjelovati u aritmetičkim operatorima, ali im svi elementi moraju biti imena/brojevi i operacije se rade element-po-element
+        elif tree ^ ConstructorCall and not tree.type ^ T.NUMBER:
+            raise SemantičkaGreška('Očekivan konstruktor broja')
+        elif tree ^ List:
+            # liste mogu sudjelovati u aritmetičkim operacijama, ali im svi elementi moraju biti imena/brojevi i operacije se rade element-po-element
             for el in tree.elements:
                 if not is_arithmetic(el):
                     return False
             return True
-        elif tree ^ {T.IME, Call, ConstructorCall}:
+        #elif tree ^ {T.IME, Call, ConstructorCall}:
+         #   return None # statički neodlučivo
+        return False
+
+def is_datetime(tree):
+        if tree ^ Unary:
+            return False
+        elif tree ^ Binary:
+            if tree.op ^ T.MINUS:
+                return True
+            return False
+        elif tree ^ {Date, DateTime, T.IME, Call}:
+            return True
+        elif tree ^ ConstructorCall and not tree.type ^ T.DATETIME:
+            raise SemantičkaGreška('Očekivan konstruktor datuma')
+        elif tree ^ List:
+            for el in tree.elements:
+                if not is_datetime(el):
+                    return False
             return True
         return False
 
@@ -303,8 +375,10 @@ def is_stringetic(tree):
             if not is_stringetic(el):
                 return False
         return True
-    elif tree ^ {T.IME, Call, ConstructorCall}:
-            return True
+    elif tree ^ {T.IME, Call}:
+            return None
+    elif tree ^ ConstructorCall and not tree.type ^ T.STRINGTYPE:
+        raise SemantičkaGreška('Očekivan konstruktor stringa')
     return False
 
 def is_boolean(tree):
@@ -313,7 +387,7 @@ def is_boolean(tree):
             return True
         return False
     elif tree ^ Binary:
-        if tree.op ^ {T.EQ, T.NEQ, T.LE, T.LT, T.GE, T.GT}:
+        if tree.op ^ {T.AND, T.OR, T.EQ, T.NEQ}:
             return True
         return False
     elif tree ^ Literal and tree.value ^ {T.TRUE, T.FALSE}:
@@ -325,12 +399,15 @@ def is_boolean(tree):
         return True
     elif tree ^ {T.IME, Call}:
             return True
+    elif tree ^ ConstructorCall and not tree.type ^ T.BOOL:
+        raise SemantičkaGreška('Očekivan konstruktor boola')
     return False
 
 class P(Parser):
     def start(p):
         rt.symtab = list() # želimo leksički scopeane varijable tj. funkcijski lokalne varijable su vidljive samo unutar funkcije ispod pozicije deklariranja
         # i ne smiju se opetovano deklarirati u istoj funkciji; pri izlasku iz funkcije, parser zaboravlja sve njene lokalne varijable. Zato koristimo stog
+        rt.funtab = Memorija() # tu držimo samo (globalne) funkcije
         functions = []
         statements = []
 
@@ -349,7 +426,8 @@ class P(Parser):
     def fun(p):
         p >> T.FUNCTION
         name = p >> T.IME
-        if is_in_symtable(name):
+        #if is_in_symtable(name):
+        if name not in rt.funtab:
             raise p.greška('Funkcija ' + name.sadržaj + ' je već definirana')
         params = []
         p >> T.OTV
@@ -361,7 +439,8 @@ class P(Parser):
         body = p.body()
         rt.symtab.pop()
         p >> T.DVIT
-        rt.symtab[-1][name] = Function(name, params, body)
+        #rt.symtab[-1][name] = Function(name, params, body)
+        rt.funtab[name] = Function(name, params, body)
         return rt.symtab[-1][name]
 
     def params(p):
@@ -426,8 +505,8 @@ class P(Parser):
         if not is_in_symtable(var):
             raise p.greška('Varijabla ' + var.sadržaj + ' nije definirana')
         idx, symtab = get_symtab(var)
-        if symtab[var] ^ Function:
-            raise p.greška('U for petlji je ime funkcije umjesto varijable')
+        #if symtab[var] ^ Function:
+         #   raise p.greška('U for petlji je ime funkcije umjesto varijable')
         if p >= T.LVIT:
             stmts = p.stmts2()
             p >> T.DVIT
@@ -441,7 +520,8 @@ class P(Parser):
         p >> T.IF
         p >> T.OTV
         test = p.expr()
-        if not test ^ Binary or not test.op ^ T.LT or not test.op ^ T.LE or not test.op ^ T.GT or not test.op ^ T.GE or not test.op ^ T.EQ or not test.op ^ T.NEQ:
+        #if not test ^ Binary or not test.op ^ T.LT or not test.op ^ T.LE or not test.op ^ T.GT or not test.op ^ T.GE or not test.op ^ T.EQ or not test.op ^ T.NEQ:
+        if not is_boolean(test):
             raise SemantičkaGreška('Uvjeti za grananje moraju biti bool izrazi')
         p >> T.ZATV
         p >> T.LVIT
@@ -462,11 +542,12 @@ class P(Parser):
         fun = None
         if fun := p >= T.IME:
             if not is_function_defined(fun): # koristimo ovu zasebnu funkciju za funkcijske simbole jer oni moraju biti samo u globalnom scopeu
-                raise p.greška('Funkcija ' + fun.sadržaj + ' nije definirana')
-            idx, symtab = get_symtab(fun)
-            if not symtab[fun] ^ Function:
-                raise p.greška('Očekivana funkcija za poziv')
-            fun = symtab[fun]
+                raise SemantičkaGreška('Funkcija ' + fun.sadržaj + ' nije definirana')
+            #idx, symtab = get_symtab(fun)
+            #if not symtab[fun] ^ Function:
+                #raise p.greška('Očekivana funkcija za poziv')
+            #fun = symtab[fun]
+            fun = rt.funtab[fun]
         elif fun := p >= T.SETPARAM:
             p >> T.OTV
             args = {}
@@ -502,17 +583,17 @@ class P(Parser):
             middle = p.expr()
             p >> T.COLON
             right = p.expr()
-            if middle ^ Assignment or right ^ Assignment:
+            if left ^ Assignment or middle ^ Assignment or right ^ Assignment:
                 raise GreškaPridruživanja
             return Ternary(left, middle, right)
         else:
             return left
-        
+        #TODO: trebamo li dozvoliti višestruka pridruživanja oblika a=b=c=d? To bi mogli posebnim pravilom za stmt...
     def cross(p):
         tree = p.sel()
         while op := p >= T.CROSSING:
             tree = Binary(op, tree, p.sel())
-            if tree.right ^ Assignment:
+            if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
         return tree
     
@@ -531,7 +612,7 @@ class P(Parser):
         tree = p.expr3()
         while op := p >= T.OR:
             tree = Binary(op, tree, p.expr3())
-            if tree.right ^ Assignment:
+            if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
             #if tree.right ^ Nary:
                 #if tree.right[0][1][0][1][0] ^ Assignment:
@@ -549,7 +630,7 @@ class P(Parser):
         while op := p >= T.AND:
             tree = Binary(op, tree, p.expr5())
             #if tree.right[0][1][0][1][0] ^ Assignment:
-            if tree.right ^ Assignment:
+            if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
         return tree
     
@@ -565,31 +646,52 @@ class P(Parser):
         tree = p.expr4()
         while op := p >= {T.LT, T.LE, T.GT, T.GE}:
             tree = Binary(op, tree, p.expr4())
-            if tree.right ^ Assignment:
+            if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
         return tree
     
     def expr4(p):
         terms = [[T.PLUS, p.term()]]
+        arithmetic = True
+        stringetic = True
+        len = terms[-1][1].get_list_length()
         while op := p >= {T.PLUS, T.MINUS}:
             if terms[-1][1] ^ Assignment:
                 raise GreškaPridruživanja
+            #if not is_arithmetic(terms[-1][1]) and not is_stringetic(terms[-1][1]):
+            if not arithmetic and not stringetic:
+                raise SemantičkaGreška('+ i - dozvoljeno samo nad brojevima i stringovima')
+            if not is_arithmetic(terms[-1][1]):
+                if not stringetic:
+                    raise SemantičkaGreška('Aritmetičke operacije s brojem mogu biti samo s drugim brojem')
+                arithmetic = False
+            if not is_stringetic(terms[-1][1]):
+                if not arithmetic:
+                    raise SemantičkaGreška('Konkatenacija stringa moguća samo s drugim stringom')
+                stringetic = False
+            if op ^ T.MINUS and stringetic:
+                raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
+            if terms[-1][1] ^ List:
+                if len is not None:
+                    if len != terms[-1][1].get_list_length():
+                        raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                else:
+                    len = terms[-1][1].get_list_length()
             terms.append([op, p.term()])
+        if terms[-1][1] ^ Assignment:
+            raise GreškaPridruživanja
         if len(terms) == 1:
             return terms[0][1]
         else:
             any_lists = False
-            stringetic = True
-            arithmetic = True
             # dopuštamo samo + nad stringovima, što uključuje i liste stringova. NIJE dozvoljen + nad stringom i brojem; nužno je eksplicitno konvertirati
             for op,item in terms:
-                if not is_stringetic(item):
-                    stringetic = False
-                if not is_arithmetic(item):
-                    arithmetic = False
+                stringetic = is_stringetic(item)
+                arithmetic = is_arithmetic(item)
                 if item ^ List:
                     any_lists = True
-            if arithmetic and stringetic:
+            if arithmetic and stringetic: # TODO: ovdje treba rekurzivno testirati je li zaista aritmetički ili string izraz jer moguće da je bilo
+                #neodlučivo tj. statički nije ni je ni nije ni jedno ni drugo, ali za to nije dovoljno provjeriti samo jednu razinu izraza
                 raise SemantičkaGreška('Zbrajanje broja i stringa nije dopustivo; ako želite konkatenaciju, koristite string(brojevni izraz)')
             if stringetic:
                 for op,ign in terms:
@@ -608,45 +710,32 @@ class P(Parser):
 
         return Nary(terms)
     
-    def term(p):
+    def term(p): #TODO: tu je nužan dodatan check na kraju (nije moguće ovdje prilikom izgradnje AST-a) koji provjerava konzistentnost rada s jedinicama
         facts = [[T.PUTA, p.fact()]]
+        len = facts[-1][1].get_list_length()
         while op := p >= {T.PUTA, T.DIV}:
-            if facts[-1][1] ^ Assignment:
-                raise GreškaPridruživanja
+            if not is_arithmetic(facts[-1][1]):
+                raise SemantičkaGreška('Množenje i dijeljenje moguće samo s brojevnim operandima/listama')
             facts.append([op, p.fact()])
+            if facts[-1][1] ^ List:
+                if facts[-1][1].get_list_length() != len:
+                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                # ako se liste pojavljuju u množenju/dijeljenju, to je dopustivo i u proizvoljnoj kombinaciji sa skalarima, s prirodnom
+                # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine ("broadcasting")
+        if not is_arithmetic(facts[-1][1]):
+            raise SemantičkaGreška('Množenje i dijeljenje moguće samo s brojevnim operandima/listama')
         if len(facts) == 1:
             return facts[0][1]
-        else:
-            any_lists = False
-            for ign,item in facts: # ako se liste pojavljuju u množenju/dijeljenju, to je dopustivo i u proizvoljnoj kombinaciji sa skalarima, s prirodnom
-                # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine
-                if not is_arithmetic(item):
-                    raise SemantičkaGreška('Množenje i dijeljenje moguće samo s brojevnim operandima/listama')
-                if item ^ List:
-                    any_lists = True
-            if any_lists:
-                len = None
-                for ign,item in facts:
-                    tmp = item.get_list_length()
-                    if tmp != -2:
-                        if len is None:
-                            len = tmp
-                        else:
-                            if len != tmp:
-                                raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
         return Nary(facts)
     
     def fact(p):
         bots = [p.bot()]
         while p >= T.DOT: 
-            if bots[-1] ^ Assignment:
-                raise GreškaPridruživanja('Pridruživanje nije izraz') # tu detektiramo krive izraze;
-            #ovo se radi kad god može biti više operanada jer to onda ne može biti pridruživanje (koje jest jedan jedini pseudoizraz)
             bots.append(p.bot())
         if len(bots) > 1:
             if not bots[0] ^ ConstructorCall and not bots[0] ^ T.IME:
                 raise SemantičkaGreška('Početak liste s točkama mora biti konstruiran objekt ili ime')
-            for item in bots:
+            for item in bots[1:]:
                 if not item ^ T.IME:
                     raise SemantičkaGreška('Samo imena svojstava smiju biti između točaka')
         return DotList.ili_samo(bots)
@@ -656,16 +745,17 @@ class P(Parser):
     # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
     def bot(p):
         if var := p > T.IME:
-            if not is_in_symtable(var):
-                raise p.greška('Ime ' + var.sadržaj + ' nije viđeno do sada')
-            idx, symtab = get_symtab(var)
-            if symtab[var] ^ Function: # ovo mora biti poziv funkcije 'var'
-                return p.call()
-            else: # inače je čisto pridruživanje varijable ili čisto pojavljivanje varijable (po mogućnosti unutar složenijeg izraza)
+            if is_in_symtable(var):# inače je čisto pridruživanje varijable ili čisto pojavljivanje varijable (po mogućnosti unutar složenijeg izraza)
                 if p >= T.ASGN:
                     return Assignment(var, p.expr())
                 else:
                     return var
+            idx, symtab = get_symtab(var)
+            # ovo mora biti poziv funkcije 'var'
+            if var in rt.funtab:
+                return p.call()
+            else: 
+                raise p.greška('Ime ' + var.sadržaj + ' nije viđeno do sada')   
         elif p > {T.READ, T.WRITE, T.SETPARAM}:
             return p.call()
         elif num := p >= T.BROJ:
@@ -674,6 +764,11 @@ class P(Parser):
         elif literal := p >= {T.STRING, T.TRUE, T.FALSE}:
             return Literal(literal)
         elif op := p >= {T.MINUS, T.NOT}:
+            below = p.bot()
+            if op ^ T.MINUS and not is_arithmetic(below):
+                raise SemantičkaGreška('Negirati se mogu samo brojevni izrazi')
+            if op ^ T.NOT and not is_boolean(below):
+                raise SemantičkaGreška('Logička negacija moguća samo na bool izrazima')
             return Unary(op, p.bot())
         elif p >= T.OTV:
             subexpr = p.expr()
@@ -688,12 +783,30 @@ class P(Parser):
         else:
             return p.edb()
 # decl -> LET IME | LET asgn
+# cons -> type OTV args? ZATV | DNA LUGL params DUGL | DNA OTV IME ZATV 
     def cons(p):
         type = p >> {T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME}
         p >> T.OTV
+        if type ^ T.DNA: # poseban slučaj za konstrukciju DNA: može kao DNA(ATCGGA) ili kao DNA([A,T,C,G,G,A])
+            if p >= T.LUGL:
+                bases = p.params()
+                # validiraj da su imena samo 'A', 'T', 'C' ili 'G'
+                for base in bases:
+                    if base.sadržaj not in {'A', 'T', 'C', 'G'}:
+                        raise SintaksnaGreška('Netočan format DNA: očekivani nukelotidi iz {A,T,C,G}')
+                p >> T.DUGL
+                p >> T.ZATV
+                values = [base.sadržaj for base in bases]
+                return DNA(values)
+            elif bases := p >> T.IME:
+                for base in bases.sadržaj:
+                    if base not in {'A', 'T', 'C', 'G'}:
+                        raise SintaksnaGreška('Netočan format DNA: očekivani nukelotidi iz {A,T,C,G}')
+                p >> T.ZATV
+                return DNA(bases)
         args = []
-        if p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
-            args = p.args()   # TODO: dodati validatore za pozive konstruktora na baznim tipovima + validatore za pozive user funkcija
+        if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+            args = p.args()
         p >> T.ZATV
         type.validate_call(args)
         return ConstructorCall(type, args)
@@ -714,7 +827,7 @@ class P(Parser):
 
     def list(p):
         p >> T.LUGL
-        if not p > {T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        if not p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             return List([])
         exprs = [p.expr()]
         while p >= T.COMMA: exprs.append(p.expr())
@@ -787,7 +900,7 @@ class Call(AST):
     arguments: ...
 
     def get_list_length(self):
-        return -2
+        return None
 
 class Ternary(AST):
     left: ...
@@ -799,38 +912,27 @@ class Binary(AST):
     left: ...
     right: ...
 
-    def get_list_length(self): # daje duljinu listi ako postoje u ikojem argumentu; -1 ako ne postoje (pretpostavka je da je izraz dobro formiran) i
-        # -2 ako to nije statički odlučivo
-        tmp = self.left.get_list_length()
-        if tmp == -1:
-            return -1
-        tmp = self.right.get_list_length()
-        if tmp == -1:
-            return -1
-        return tmp
+    def get_list_length(self):
+        return self.left.get_list_length()
 
 class Unary(AST):
     op: ...
     child: ...
 
     def get_list_length(self):
-        tmp = self.child.get_list_length()
-        if tmp == -1:
-            return -1
-        return tmp
+        return self.child.get_list_length()
 
 class Nary(AST):
     pairs: ... # (op,expr) pairs
 
     def get_list_length(self):
-        for op,expr in self.pairs:
-            tmp = expr.get_list_length()
-            if tmp == -1:
-                return -1
-        return tmp
+        return self.pairs[0][1].get_list_length()
 
 class DotList(AST):
     elements: ...
+
+    def get_list_length(self):
+        return None
 
 class Assignment(AST):
     variable: ...
@@ -841,26 +943,26 @@ class Number(AST):
     unit: ...
 
     def get_list_length(self):
-        return -1
+        return None
 
 class Literal(AST):
     value: ...
 
     def get_list_length(self):
-        return -1
+        return None
 
 class ConstructorCall(AST):
     type: ...
     arguments: ...
 
     def get_list_length(self):
-        return -1
+        return None
 
 class Date(AST):
     date: ... #(day,month,year) triple
 
     def get_list_length(self):
-        return -1
+        return None
 
 class DateTime(Date):
     hours: ...
@@ -868,7 +970,10 @@ class DateTime(Date):
     seconds: ...
 
     def get_list_length(self):
-        return -1
+        return None
+    
+class DNA(AST):
+    bases: ...
 
 class List(DotList):
     def get_list_length(self):
@@ -878,7 +983,7 @@ class Edibility(AST):
     kind: ...
 
     def get_list_length(self):
-        return -1
+        return None
 
 class Declaration(AST):
     variable: ...
