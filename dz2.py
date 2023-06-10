@@ -1068,7 +1068,8 @@ class Call(AST):
             rt.funtab[self.function].izvrši()
         except Povratak as ex:
             retval = ex.preneseno
-
+        
+        rt.okolina.pop()
         return retval
 
     def get_list_length(self):
