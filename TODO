@@ -8,7 +8,9 @@ Petar:
   stvara jednu takvu gljivu. Interpreter također treba biti spreman primiti i još jedan parametar povrh ovog, a taj se tiče vremena unosa/pronalaska tog uzorka.
   Ako se ne navede eksplicitno, uvijek se automatski u interpeteru uzima *trenutno* sistemsko vrijeme
   Kada ovo bude gotov, ne bi trebalo biti teško implementirati preostale operatore; to možeš i ti ili ja. NAPOMENA: dna se unosi po posebnim pravilima u ovom jeziku,
-  možeš vidjeti BKG pravilo i odgovarajuću parser funkciju za detalje.
+  možeš vidjeti BKG pravilo i odgovarajuću parser funkciju za detalje. Genetski operatore crpe sve potrebne parametre za rad (poput tipa distribucije za mutacije i sl.) direktno iz globalnih parametara koji se postavljaju sa setParam. Kada odlučiš da ti treba nešto za implementaciju, jednostavno dodaj to u neki globalni dict
+  koji ćemo svi referencirati unutar interpreterskog koda za određeni genetski operator. Taj dict se mijenja kad se izvede određeni setparam poziv; završit ću taj dio
+  interpretera danas
 * odabrati neke jednostavnije primjere koda; onda ćemo zajedno odabrati koji su najbolji/nasloženiji za staviti ih u samu zadaću
 
 Mauro:
