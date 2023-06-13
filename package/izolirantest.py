@@ -19,6 +19,12 @@ class T(TipoviTokena):
     TRUE, FALSE = 'true', 'false'
     SETPARAM = 'setParam'  #ovo je builtin funkcija koja služi interaktivnoj izmjeni/prilagodbi globalnihparametara evolucijskih operatora
 
+    class MUTATION(Token): pass
+    class CROSSING(Token): pass
+    class SELECTION(Token): pass
+
+alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
+
 @lexer
 def miko(lex):
     for znak in lex:
@@ -63,7 +69,10 @@ def miko(lex):
             lex.zanemari()
         else:
             try:
-                yield lex.literal_ili(T.COMMA)
+                if lex.sadržaj in alias:
+                    yield lex.token(alias[lex.sadržaj])
+                else:
+                    yield lex.literal(T)
             except KeyError:
                 raise lex.greška()
             

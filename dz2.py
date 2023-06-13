@@ -244,7 +244,10 @@ def miko(lex):
             lex.zanemari()
         else:
             try:
-                yield lex.literal_ili(alias[lex.sadržaj])
+                if lex.sadržaj in alias:
+                    yield lex.token(alias[lex.sadržaj])
+                else:
+                    yield lex.literal(T)
             except KeyError:
                 raise lex.greška()
 
