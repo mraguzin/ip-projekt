@@ -67,26 +67,30 @@ class T(TipoviTokena):
     class STRINGTYPE(Token): # ovo stavljamo ovdje radi mogućnosti provjera konstruktorskih argumenata
         literal = 'String'
         def validate_call(self, *args):
-            if len(args) != 1:
+            if len(args) != 1 or not is_stringetic(args[0]) or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor String-a traži string izraz')
             return True
     class NUMBER(Token):
         literal = 'Number'
         def validate_call(self, *args):
-            if len(args) != 1:
+            if len(args) != 1 or not is_arithmetic(args[0]) or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor Number-a traži brojevni izraz')
             return True
     class BOOL(Token):
         literal = 'Bool'
         def validate_call(self, *args):
-            if len(args) != 1:
+            if len(args) != 1 or not is_boolean(args[0]) or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor Bool-a traži bool izraz')
             return True
     class FUNGUS(Token):
         literal = 'Fungus'
         def validate_call(self, *args):
-            if len(args) != 3 or len(args) != 4: # mora se navesti ime,latinsko ime,dna; opcionalno je još i Datetime pronalaska/unosa uzorka
-                raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA i opcionalno još vrijeme pronalaska')
+            if len(args) != 4 or len(args) != 5: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
+                raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
+            if not is_stringetic(args[0]) or is_list(args[0]) or not is_stringetic(args[1]) or is_list(args[1]) or not args[2] ^ {T.IME, DNA} or not(args[3] ^ T.IME or args[3] ^ ConstructorCall and not args[3].type ^ T.TREE):
+                raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
+            if len(args) == 5 and (not is_datetime(args[4]) or is_list(args[4])):
+                raise SemantičkaGreška('Opcionalni argument Fungus konstruktora je datum/vrijeme')
             return True
     class TREE(Token):
         literal = 'Tree'
@@ -99,6 +103,9 @@ class T(TipoviTokena):
         def validate_call(self, *args):
             if len(args) != 1:
                 raise SemantičkaGreška('Konstruktor Edibility-ja traži jednu od kontekstualnih ključnih riječi za jestivost/toksičnost')
+            kind = args[0]
+            if not kind ^ {T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE}:
+                raise SemantičkaGreška('Edibility specifikacija mora biti jedna od predefiniranih...')
             return True
     class DNA(Token):
         literal = 'DNA'
@@ -109,7 +116,7 @@ class T(TipoviTokena):
     class DATETIME(Token):
         literal = 'Datetime'
         def validate_call(self, *args):
-            if len(args) != 1:
+            if len(args) != 1 or not is_datetime(args[0]) or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor Datetime-a zahtijeva literal datuma ili datuma+vremena')
             return True
     class RETURN(Token):
@@ -362,8 +369,6 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
 def is_datetime(tree):
         if tree ^ Unary:
             return False
-        #elif tree ^ Nary and tree.pairs[0][0] ^ T.MINUS:
-         #   return True
         elif tree ^ {Date, DateTime, T.IME, Call}:
             return True
         elif tree ^ ConstructorCall and tree.type ^ T.DATETIME:
@@ -438,7 +443,6 @@ def listcheck(checker, *args): # rekurzivna provjera kompatibilnosti listi
                     return False
         
         for els in zip(*args):
-            #if not checker(*els):
             if not listcheck(checker, *els):
                 return False
         return True
@@ -494,9 +498,47 @@ def listcheck_bool(*args):
     return listcheck(is_boolean, *args)
 
 def units_check(*args):
+    num_lists = 0
+    for arg in args:
+        if is_list(arg):
+            num_lists += 1
+    if num_lists > 0 and num_lists < len(args):
+        return False
+    if num_lists == 0:
+        if not is_arithmetic(args[0]):
+            return False
+    unit = None
+    for arg in args:
+        if unit and is_list(arg):
+            return False
+        if arg ^ Number and arg.unit:
+            if unit:
+                return False
+            unit = arg.unit
+        
+        # svi su liste
+    len = None
+    for list in args:
+        if len is None:
+            len = list.get_list_length()
+        else:
+            if len != list.get_list_length():
+                return False
+        
+    for els in zip(*args):
+        if not units_check(*els):
+            return False
+    return True
+
+
+   
+
+
     unit = None
     if args[0] ^ Number and args[0].unit:
         unit = args[0].unit
+    elif is_list(args[0]):
+        return False
     for arg in args[1:]:
         if arg ^ Number and arg.unit:
             if unit:
@@ -505,6 +547,8 @@ def units_check(*args):
         elif unit:
             if arg ^ Number and arg.unit:
                 return False
+        if is_list(args[0]):
+            return False
             
     return True
 
@@ -538,7 +582,7 @@ class P(Parser):
         p >> T.FUNCTION
         name = p >> T.IME
         #if is_in_symtable(name):
-        if name not in rt.funtab:
+        if name in rt.funtab:
             raise p.greška('Funkcija ' + name.sadržaj + ' je već definirana')
         params = []
         p >> T.OTV
@@ -675,7 +719,7 @@ class P(Parser):
         args = []
         if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
-        fun.validate_call(args)
+        fun.validate_call(*args)
         p >> T.ZATV
         return Call(fun, args)
     
@@ -900,7 +944,7 @@ class P(Parser):
                 raise SemantičkaGreška('Negirati se mogu samo brojevni izrazi')
             if op ^ T.NOT and not is_boolean(below):
                 raise SemantičkaGreška('Logička negacija moguća samo na bool izrazima')
-            return Unary(op, p.bot())
+            return Unary(op, below)
         elif p >= T.OTV:
             subexpr = p.expr()
             p >> T.ZATV
@@ -939,7 +983,7 @@ class P(Parser):
         if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
         p >> T.ZATV
-        type.validate_call(args)
+        type.validate_call(*args)
         return ConstructorCall(type, args)
     
     def datespec(p):
