@@ -1,4 +1,4 @@
-""" Attempt #1
+"""
 Jezik za obradu mikoloških uzoraka i njihovu klasifikaciju. Podržava string i number (interno uvijek double tj. Python float) tipove te 
 standardne aritmetičke i logičke operatore iz C-a (uključujući i ternarni). Posebni dodaci:
     * tip podataka koji daje indikaciju razine jestivosti ili razine otrovnosti/toksičnosti (postoji samo konačan skup za selekciju ovih vrijednosti);
@@ -65,52 +65,52 @@ class T(TipoviTokena):
     class CROSSING(Token): pass
     class SELECTION(Token): pass
     class STRINGTYPE(Token): # ovo stavljamo ovdje radi mogućnosti provjera konstruktorskih argumenata
-        literal = 'string'
+        literal = 'String'
         def validate_call(self, *args):
             if len(args) != 1:
-                return False
+                raise SemantičkaGreška('Konstruktor String-a traži string izraz')
             return True
     class NUMBER(Token):
-        literal = 'number'
+        literal = 'Number'
         def validate_call(self, *args):
             if len(args) != 1:
-                return False
+                raise SemantičkaGreška('Konstruktor Number-a traži brojevni izraz')
             return True
     class BOOL(Token):
-        literal = 'bool'
+        literal = 'Bool'
         def validate_call(self, *args):
             if len(args) != 1:
-                return False
+                raise SemantičkaGreška('Konstruktor Bool-a traži bool izraz')
             return True
     class FUNGUS(Token):
-        literal = 'fungus'
+        literal = 'Fungus'
         def validate_call(self, *args):
-            if len(args) != 1:
-                return False
+            if len(args) != 3 or len(args) != 4: # mora se navesti ime,latinsko ime,dna; opcionalno je još i Datetime pronalaska/unosa uzorka
+                raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA i opcionalno još vrijeme pronalaska')
             return True
     class TREE(Token):
-        literal = 'tree'
+        literal = 'Tree'
         def validate_call(self, *args):
-            if len(args) != 1:
-                return False
+            if len(args) != 0:
+                raise SemantičkaGreška('Konstruktor Tree-a je bez parametara')
             return True
     class EDIBILITY(Token):
-        literal = 'edibility'
+        literal = 'Edibility'
         def validate_call(self, *args):
             if len(args) != 1:
-                return False
+                raise SemantičkaGreška('Konstruktor Edibility-ja traži jednu od kontekstualnih ključnih riječi za jestivost/toksičnost')
             return True
     class DNA(Token):
-        literal = 'dna'
+        literal = 'DNA'
         def validate_call(self, *args):
             if len(args) != 1:
-                return False
+                raise SemantičkaGreška("Can't get here")
             return True
     class DATETIME(Token):
-        literal = 'datetime'
+        literal = 'Datetime'
         def validate_call(self, *args):
             if len(args) != 1:
-                return False
+                raise SemantičkaGreška('Konstruktor Datetime-a zahtijeva literal datuma ili datuma+vremena')
             return True
     class RETURN(Token):
         literal = 'return' #TODO
@@ -249,6 +249,7 @@ def miko(lex):
                 raise lex.greška()
 
 class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanje nađe u izlazu; to ne možemo direktno predstaviti u LL(1) gramatici """
+# u ovom jeziku ne želimo da pridruživanje bude izraz
 
 #imamo tipove: string, number, bool, fungus, tree, edibility, dna, datetime
 #AUTO, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME
@@ -343,7 +344,7 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
             return False
         elif tree ^ Nary and tree.pairs[0][0] ^ {T.PLUS, T.MINUS, T.PUTA, T.DIV}:
             return True
-        elif tree ^ {Number, T.IME, Call}:
+        elif tree ^ {Number, T.IME, Call}: # za T.IME mi naravno ne možemo znati pri parsiranju je li to aritmetički ili kakav već tip
             return True
         elif tree ^ ConstructorCall and tree.type ^ T.NUMBER:
             return True
@@ -996,7 +997,7 @@ class Program(AST):
         rt.symtab.pop() # očisti stog
         rt.symtab = list()
         rt.symtab.append(Memorija())
-        rt.okolina = rt.symtab # tu držimo vrijednosti vidljivih varijabli; na početku su to samo globalne, a svaki pojedini poziv stvara podokvir tj. nadodaje
+        rt.okolina = rt.symtab # tu držimo vrijednosti vidljivih varijabli; na početku su to samo globalne, a svaki pojedini poziv stvara okvir tj. nadodaje
         # stvari koje onda skida kada završi s izvršavanjem pozvane funkcije
 
         for stmt in self.statements:
@@ -1012,8 +1013,9 @@ class Function(AST):
             raise SemantičkaGreška('Broj argumenata kod poziva funkcije' + self.name.sadržaj + ' treba biti ' + len(self.parameter_names))
 
     def izvrši(self):
-        # ovo je općenit mehanizam za pozivanje funkcija koji simulira sistemski stog (call stack) i stoga omogućuje i sve oblike rekurzije, 
-        # samo što mi ne podržavamo poziv funkcije koja još nije do kraja definirana zbog jednoprolaznosti parsera
+        # ovo je općenit mehanizam za pozivanje funkcija koji simulira sistemski stog (call stack) i stoga omogućuje sve oblike rekurzije, 
+        # samo što mi ne podržavamo poziv funkcije koja još nije do kraja definirana zbog jednoprolaznosti parsera (dakle, nije podržavana rekurzija u
+        # punom smislu)
         for stmt in self.body:
             stmt.izvrši()
 
