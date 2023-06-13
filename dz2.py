@@ -43,6 +43,7 @@ class T(TipoviTokena):
     ASGN, NEQ, LE, GE = ':=', '!=', '<=', '>='
     AND, OR, NOT = 'and', 'or', 'not'
     LET = 'let'
+    RETURN = 'return'
     # način za eksplicitno deklarirati varijablu nekog builtin tipa npr. number(12) je ekviv. 12. Zagrade su obvezne pri konstrukciji!
     DEADLY, TOXIC1, TOXIC2, EDIBLE = 'deadly', 'toxic1', 'toxic2', 'edible'
     #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #
@@ -119,12 +120,14 @@ class T(TipoviTokena):
             if len(args) != 1 or not is_datetime(args[0]) or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor Datetime-a zahtijeva literal datuma ili datuma+vremena')
             return True
-    class RETURN(Token):
-        literal = 'return' #TODO
     class CONTINUE(Token):
         literal = 'continue'
+        def izvrši(self):
+            raise Nastavak()
     class BREAK(Token):
         literal = 'break'
+        def izvrši(self):
+            raise Prekid()
     class BROJ(Token):
         def vrijednost(self):
             return float(self.sadržaj)
@@ -204,7 +207,7 @@ def miko(lex):
             continue
         elif znak == '-':
             if znak := lex >= str.isdigit:
-                 pass
+                 znak = '1' # nebitno
             else:
                  yield lex.literal(T)
                  continue
@@ -807,9 +810,10 @@ class P(Parser):
             tree = Binary(op, tree, p.expr6())
             if tree.left ^ Assignment or tree.right ^ Assignment:
                 raise GreškaPridruživanja
-            if is_list(tree.left) or is_list(tree.right):
-                if not listcheck_bool(tree.left, tree.right):
-                    raise SemantičkaGreška('Lijeva i desna lista nisu kompatibilne za test (ne)jednakosti')
+            #if is_list(tree.left) or is_list(tree.right):
+                #if not listcheck_bool(tree.left, tree.right):
+                    #raise SemantičkaGreška('Lijeva i desna lista nisu kompatibilne za test (ne)jednakosti')
+        
             
         return tree
     
@@ -1035,6 +1039,8 @@ class P(Parser):
 
 
 class Povratak(NelokalnaKontrolaToka): pass
+class Nastavak(NelokalnaKontrolaToka): pass
+class Prekid(NelokalnaKontrolaToka): pass
 
 class Program(AST):
     statements: ...
@@ -1046,6 +1052,12 @@ class Program(AST):
         rt.symtab.append(Memorija())
         rt.okolina = rt.symtab # tu držimo vrijednosti vidljivih varijabli; na početku su to samo globalne, a svaki pojedini poziv stvara okvir tj. nadodaje
         # stvari koje onda skida kada završi s izvršavanjem pozvane funkcije
+        rt.params = Memorija() # tu spremamo parametre postavljene sa setParams; ovdje želimo postaviti neke smislene defaulte koje koriste genetski
+        # operatori
+        rt.params['preferparents'] = (0,0)
+        rt.params['dist'] = 'gauss'
+        rt.params['mean'] = 0.0
+        rt.params['stddev'] = 0.2
 
         for stmt in self.statements:
             stmt.izvrši()
@@ -1080,7 +1092,11 @@ class ForLoop(AST):
     def izvrši(self):
         idx, var = get_symtab(self.loop_variable)
         while self.loop_variable.vrijednost() != 0:
-            self.body_statements.izvrši()
+            try:
+                self.body_statements.izvrši()
+            except Prekid:
+                break
+            except Nastavak: pass
             rt.okolina[idx][self.loop_variable] -= 1 # ovo je default petlja; mogli bismo dodati i još neke, ali čak i ovakva implementacija
             # dozvoljava da korisnik mijenja varijablu i utječe na ponašanje petlje tijekom njena izvođenja
 
@@ -1135,10 +1151,27 @@ class Ternary(AST):
     middle: ...
     right: ...
 
+    def vrijednost(self):
+        if self.left.vrijednost():
+            return self.middle.vrijednost()
+        else:
+            return self.right.vrijednost()
+
 class Binary(AST):
     op: ...
     left: ...
     right: ...
+
+    def vrijednost(self):
+        if self.op ^ T.CROSSING:
+            children = []
+            if rt.params['dist'] == 'gauss': # TODO:preostale mogućnosti
+                if self.left ^ List and self.right ^ List and self.left.get_list_length() == self.right.get_list_length():
+                    children = [onecross(left, right) for left,right in zip(self.left, self.right)]
+                elif self.left ^ List and self.right ^ List and len(rt.params['preferparents']) != 0:
+                    prefs = rt.params['preferparents']
+                    children = [onecross(self.left[prefs[0]], self.right[prefs[1]])]
+                    
 
     def get_list_length(self):
         return self.left.get_list_length()
