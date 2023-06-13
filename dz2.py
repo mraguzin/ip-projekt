@@ -235,7 +235,7 @@ def miko(lex):
             yield lex.literal(T)
         elif znak == '<':
             lex >= '='
-            yield lex.literal_ili(alias[lex.sadržaj])
+            yield lex.literal(T)
         elif znak == '>':
             lex >= '='
             yield lex.literal(T)
@@ -558,6 +558,8 @@ def units_check(*args):
 def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *rezultira* u listi; uočimo da to ne moraju direktno biti liste, već i drugi
     # izrazi za koje statički znamo da daju listu (tj. da im je vrijednost lista). Kada bismo imali neke operatore koji mogu "suziti" rezultat npr. iz
     # liste operanada dati nekakav "skalar" (OTOH operatori usporedbe < i > nad listama brojeva), onda bi ovo bila složenija funkcija.
+    if node ^ Binary and node.op ^ {T.EQ, T.NEQ}: # ipak imamo ovaj važan poseban slučaj
+        return False 
     return node.get_list_length() is not None
 
 class P(Parser):
@@ -1171,10 +1173,135 @@ class Binary(AST):
                 elif self.left ^ List and self.right ^ List and len(rt.params['preferparents']) != 0:
                     prefs = rt.params['preferparents']
                     children = [onecross(self.left[prefs[0]], self.right[prefs[1]])]
+        elif self.op ^ T.AND:
+            # nema listi
+            left = self.left.vrijednost()
+            if type(left) == bool and not left:
+                return False # short circuiting
+            right = self.right.vrijednost()
+            if type(left) != bool or type(right) != bool:
+                raise SemantičkaGreška('Logički operatori su legalni samo nad bool izrazima')
+            return left and right
+        elif self.op ^ T.OR:
+            left = self.left.vrijednost()
+            if type(left) == bool and left:
+                return True
+            right = self.right.vrijednost()
+            if type(left) != bool or type(right) != bool:
+                raise SemantičkaGreška('Logički operatori su legalni samo nad bool izrazima')
+            return left or right
+        elif self.op ^ T.DIV:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left / right
+            if type(left) == type(right) == list:
+                if len(left) != len(right):
+                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                return [op1 / op2 for op1,op2 in zip(left, right)]
+            raise SemantičkaGreška('Nekompatibilni izrazi')
+        elif self.op ^ T.EQ:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) and type(left) != list:
+                return left == right #TODO: pripazi da naši custom objekti u Pythonu rade pravilno s operatorom == i !=
+            elif type(left) == type(right): # riječ je o listi
+                if len(left) != len(right):
+                    return False
+                # moramo rekurzivno dalje
+                res = True
+                for op1,op2 in zip(left, right):
+                    res = res and eq_recursive(op1, op2)
+                return res
+            return False
+        elif self.op ^ T.NEQ:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) and type(left) != list:
+                return left != right #TODO: pripazi da naši custom objekti u Pythonu rade pravilno s operatorom == i !=
+            elif type(left) == type(right): # riječ je o listi
+                if len(left) != len(right):
+                    return True
+                # moramo rekurzivno dalje
+                res = True
+                for op1,op2 in zip(left, right):
+                    res = res and not eq_recursive(op1, op2)
+                return res
+            return True
+        elif self.op ^ T.GE:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left >= right
+            raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
+        elif self.op ^ T.GT:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left > right
+            raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
+        elif self.op ^ T.LE:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left <= right
+            raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
+        elif self.op ^ T.LT:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left < right
+            raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
+        elif self.op ^ T.MINUS:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left - right
+            raise SemantičkaGreška('Samo se brojevi mogu oduzimati')
+        elif self.op ^ T.PLUS:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left + right
+            elif type(left) == type(right) == str:
+                return left + right
+            elif type(left) == type(right) == list:
+                if len(left) != len(right):
+                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                return [op1 + op2 for op1,op2 in zip(left, right)]
+            raise SemantičkaGreška('Samo se brojevi mogu zbrajati, a stringovi konkatenirati s + (moguće i s listama istih)')
+        elif self.op ^ T.MUL:
+            left = self.left.vrijednost()
+            right = self.right.vrijednost()
+            if type(left) == type(right) == float:
+                return left + right
+            elif type(left) == type(right) == str:
+                return left + right
+            elif type(left) == type(right) == list:
+                if len(left) != len(right):
+                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                return [op1 + op2 for op1,op2 in zip(left, right)]
+            raise SemantičkaGreška('Samo se brojevi mogu zbrajati, a stringovi konkatenirati s + (moguće i s listama istih)')
+        
+
                     
 
     def get_list_length(self):
         return self.left.get_list_length()
+
+def eq_recursive(op1, op2):
+    left = op1.vrijednost()
+    right = op2.vrijednost()
+    if type(left) == type(right) and type(left) != list:
+        return left == right 
+    elif type(left) == type(right):
+        if len(left) != len(right):
+            return False
+        res = True
+        for n1,n2 in zip(left, right):
+            res = res and eq_recursive(op1, op2)
+        return res
+    return False
 
 class Unary(AST):
     op: ...
