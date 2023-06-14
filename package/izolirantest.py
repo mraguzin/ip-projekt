@@ -1741,7 +1741,7 @@ class ConstructorCall(AST):
                 if len(self.arguments) > 3:
                     minutes = 0
                     seconds = 0
-                    for el in (comp.vrijednost() for comp in self.arguments[3:]):
+                    for el in [comp.vrijednost() for comp in self.arguments[3:]]:
                         try:
                             if type(el) == str:
                                 el = int(el)
@@ -1837,7 +1837,7 @@ class Tree:
     kingdom: ...
 
     def __eq__(self, other):
-        for prop in ('species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom'):
+        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
             if hasattr(self, prop) ^ hasattr(other, prop):
                 return False
             elif hasattr(self, prop) and hasattr(other, prop):
@@ -1852,7 +1852,7 @@ class Tree:
 
     def to_string(self):
         tmp = ''
-        for prop in ('species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom'):
+        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
             val = getattr(self, prop, None)
             if val:
                 tmp += prop + ': ' + val + '\n'
@@ -1987,7 +1987,15 @@ class Declaration(AST):
     def izvrši(self):
         rt.okolina[-1][self.variable] = None
 
-
 #P('let tax := Tree(); tax.phyl := "ovo";')
 #P('let abc := "abc"; let lista := [1,2,3];  let lista2 := ["a", 20, 30]; let lista3 := ["a", [1,2], 30]; ')
 P('let var := "nešto";  if(var) {var:=1;}')
+
+program1 = """
+let var := "nešto";
+if (var) {
+   var := 1;
+}
+
+
+"""

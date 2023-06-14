@@ -1148,6 +1148,8 @@ class ForLoop(AST):
 
     def izvrši(self):
         idx, var = get_symtab(self.loop_variable)
+        if not var ^ Number:
+            raise SemantičkaGreška('Varijabla u for petlji mora biti numerička')
         while self.loop_variable.vrijednost() != 0:
             try:
                 self.body_statements.izvrši()
