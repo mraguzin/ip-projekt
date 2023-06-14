@@ -684,7 +684,6 @@ class P(Parser):
         p >> T.IF
         p >> T.OTV
         test = p.expr()
-        #if not test ^ Binary or not test.op ^ T.LT or not test.op ^ T.LE or not test.op ^ T.GT or not test.op ^ T.GE or not test.op ^ T.EQ or not test.op ^ T.NEQ:
         if not is_boolean(test):
             raise SemantičkaGreška('Uvjeti za grananje moraju biti bool izrazi')
         p >> T.ZATV
@@ -1249,25 +1248,25 @@ class Binary(AST):
         elif self.op ^ T.GE:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == float:
+            if type(left) == type(right) == Number:
                 return left >= right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
         elif self.op ^ T.GT:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == float:
+            if type(left) == type(right) == Number:
                 return left > right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
         elif self.op ^ T.LE:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == float:
+            if type(left) == type(right) == Number:
                 return left <= right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
         elif self.op ^ T.LT:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == float:
+            if type(left) == type(right) == Number:
                 return left < right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
                     
@@ -1368,7 +1367,8 @@ class Nary(AST):
                 elif type(accum) == type(tmp) == Number:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri oduzimanju')
-                    accum.value -= unit_conv(tmp.value, tmp.unit, unit)
+                    #accum.value -= unit_conv(tmp.value, tmp.unit, unit)
+                    accum -= tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi oduzimanja')
         
@@ -1385,7 +1385,8 @@ class Nary(AST):
                 elif type(accum) == type(tmp) == Number or type(accum) == type(tmp) == str:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri zbrajanju')
-                    accum.value += unit_conv(tmp.value, tmp.unit, unit)
+                    #accum.value += unit_conv(tmp.value, tmp.unit, unit)
+                    accum += tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi zbrajanja')
 
@@ -1404,7 +1405,8 @@ class Nary(AST):
                         raise SemantičkaGreška('Nije moguće množiti dvije dimenzionalne veličine')
                     elif tmp.unit:
                         accum.unit = unit = tmp.unit
-                    accum.value *= unit_conv(tmp.value, tmp.unit, unit)
+                    #accum.value *= unit_conv(tmp.value, tmp.unit, unit)
+                    accum *= tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi množenja')
         
@@ -1423,7 +1425,8 @@ class Nary(AST):
                         raise SemantičkaGreška('Nije moguće dijeliti dvije dimenzionalne veličine')
                     elif tmp.unit:
                         accum.unit = unit = tmp.unit
-                    accum.value /= unit_conv(tmp.value, tmp.unit, unit)
+                    #accum.value /= unit_conv(tmp.value, tmp.unit, unit)
+                    accum /= tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi množenja')
                 
@@ -1487,6 +1490,53 @@ class Assignment(AST):
 class Number(AST):
     value: ...
     unit: ...
+
+    def __add__(self, other):
+        val = self.value + unit_conv(other.value, other.unit, self.unit)
+        return Number(val, self.unit)
+    
+    def __sub__(self, other):
+        val = self.value - unit_conv(other.value, other.unit, self.unit)
+        return Number(val, self.unit)
+    
+    def __mul__(self, other):
+        val = self.value * unit_conv(other.value, other.unit, self.unit)
+        return Number(val, self.unit)
+    
+    def __truediv__(self, other):
+        val = self.value / unit_conv(other.value, other.unit, self.unit)
+        return Number(val, self.unit)
+    
+    def __lt__(self, other):
+        if self.unit ^ other.unit:
+            raise SemantičkaGreška('Usporedba dimenzionalne i nedimenzionalne veličine')
+        val = unit_conv(other.value, other.unit, self.unit)
+        return self.value < val
+    
+    def __gt__(self, other):
+        if self.unit ^ other.unit:
+            raise SemantičkaGreška('Usporedba dimenzionalne i nedimenzionalne veličine')
+        val = unit_conv(other.value, other.unit, self.unit)
+        return self.value > val
+    
+    def __le__(self, other):
+        if self.unit ^ other.unit:
+            raise SemantičkaGreška('Usporedba dimenzionalne i nedimenzionalne veličine')
+        val = unit_conv(other.value, other.unit, self.unit)
+        return self.value <= val
+    
+    def __eq__(self, other):
+        if self.unit ^ other.unit:
+            raise SemantičkaGreška('Usporedba dimenzionalne i nedimenzionalne veličine')
+        val = unit_conv(other.value, other.unit, self.unit)
+        return self.value == val
+    
+    def __ne__(self, other):
+        if self.unit ^ other.unit:
+            raise SemantičkaGreška('Usporedba dimenzionalne i nedimenzionalne veličine')
+        val = unit_conv(other.value, other.unit, self.unit)
+        return self.value != val
+
 
     def izvrši(self):
         raise SemantičkaGreška('Ovo nije naredba')
@@ -1689,6 +1739,12 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
     taxonomy: ...
     datetime: ...
 
+    def __eq__(self, other):
+        return self.latin == other.latin
+    
+    def __ne__(self, other):
+        return self.latin != other.latin
+
     def to_string(self):
         tmp = 'Name: ' + self.name + '\n'
         +     'Latin name: ' + self.latin + '\n'
@@ -1706,6 +1762,20 @@ class Tree:
     klasa: ...
     phylum: ...
     kingdom: ...
+
+    def __eq__(self, other):
+        for prop in ('species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom'):
+            if hasattr(self, prop) ^ hasattr(other, prop):
+                return False
+            elif hasattr(self, prop) and hasattr(other, prop):
+                val1 = getattr(self, prop, None)
+                val2 = getattr(other, prop, None)
+                if val1 != val2:
+                    return False
+        return True
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def to_string(self):
         tmp = ''
@@ -1742,7 +1812,7 @@ class DateTime(Date):
     def validiraj(self):
         super().validiraj()
         if self.hours < 0 or self.hours >= 24:
-            raise SemantičkaGreška('Sati moraju biti iz [0,23>')
+            raise SemantičkaGreška('Sati moraju biti iz [0,24>')
         if self.minutes < 0 or self.minutes >= 60:
             raise SemantičkaGreška('Minute moraju biti iz [0, 60>')
         if self.seconds < 0 or self.seconds >= 60:
