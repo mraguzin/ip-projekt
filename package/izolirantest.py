@@ -778,7 +778,9 @@ class P(Parser):
         if p >= T.ASGN:
             # imamo pridruživanje, pa lijevo smiju biti samo: imena, dot-liste
             print(type(left))
-            if not (type(left) == T.IME or type(left) == DotList):
+            if left ^ T.IME:
+                print('OK')
+            if not (left ^ T.IME) and  not (left ^ DotList):
                 raise SemantičkaGreška('Pridruživati možete samo varijabli ili nekom članu složenijeg objekta')
             right = p.expr()
             if right ^ Assignment:
@@ -1987,5 +1989,6 @@ class Declaration(AST):
     def izvrši(self):
         rt.okolina[-1][self.variable] = None
 
-P('let tax := Tree(); tax.phyl := "ovo";')
-P('let abc := "abc"; let lista := [1,2,3];')
+#P('let tax := Tree(); tax.phyl := "ovo";')
+#P('let abc := "abc"; let lista := [1,2,3];  let lista2 := ["a", 20, 30]; let lista3 := ["a", [1,2], 30]; ')
+P('let var := "nešto";  if(var) {var:=1;}')

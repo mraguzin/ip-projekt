@@ -57,7 +57,7 @@ class T(TipoviTokena):
     MILIGRAM, GRAM, KILOGRAM = 'mg', 'g', 'kg' # jedinice, mogu se koristiti nakon brojeva; jezik podržava pravilno računanje i javlja grešku
     # pri izvođenju ako je u računu s dimenzijama neki element bez eksplicitno navedene jedinice
     FUNCTION = 'function'
-    FOR, IF = 'for', 'if'
+    FOR, IF, ELSE = 'for', 'if', 'else'
     TRUE, FALSE = 'true', 'false'
 
 
@@ -778,7 +778,7 @@ class P(Parser):
         if p >= T.ASGN:
             # imamo pridruživanje, pa lijevo smiju biti samo: imena, dot-liste
             print(type(left))
-            if not (type(left) == T.IME or type(left) == DotList):
+            if not (left ^ T.IME or left ^ DotList):
                 raise SemantičkaGreška('Pridruživati možete samo varijabli ili nekom članu složenijeg objekta')
             right = p.expr()
             if right ^ Assignment:
@@ -1285,25 +1285,25 @@ class Binary(AST):
         elif self.op ^ T.GE:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == Number:
+            if left ^ Number and right ^ Number:
                 return left >= right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
         elif self.op ^ T.GT:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == Number:
+            if left ^ Number and right ^ Number:
                 return left > right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
         elif self.op ^ T.LE:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == Number:
+            if left ^ Number and right ^ Number:
                 return left <= right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
         elif self.op ^ T.LT:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) == Number:
+            if left ^ Number and right ^ Number:
                 return left < right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
                     
@@ -1403,7 +1403,7 @@ class Nary(AST):
                         el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif type(accum) == type(tmp) == Number:
+                elif accum ^ Number and tmp ^ Number:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri oduzimanju')
                     #accum.value -= unit_conv(tmp.value, tmp.unit, unit)
@@ -1423,7 +1423,7 @@ class Nary(AST):
                         el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif type(accum) == type(tmp) == Number or type(accum) == type(tmp) == str:
+                elif accum ^ Number and tmp ^ Number or type(accum) == type(tmp) == str:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri zbrajanju')
                     #accum.value += unit_conv(tmp.value, tmp.unit, unit)
@@ -1443,7 +1443,7 @@ class Nary(AST):
                         el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif type(accum) == type(tmp) == Number:
+                elif accum ^ Number and tmp ^ Number:
                     if unit and tmp.unit:
                         raise SemantičkaGreška('Nije moguće množiti dvije dimenzionalne veličine')
                     elif tmp.unit:
@@ -1465,7 +1465,7 @@ class Nary(AST):
                         el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif type(accum) == type(tmp) == Number:
+                elif accum ^ Number and  tmp ^ Number:
                     if unit and tmp.unit:
                         raise SemantičkaGreška('Nije moguće dijeliti dvije dimenzionalne veličine')
                     elif tmp.unit:
@@ -1483,7 +1483,7 @@ class DotList(AST):
     def vrijednost(self):
         obj = self.elements[0].vrijednost() # moramo pristupati kroz neki objekt: Fungus ili Tree
         ret = None
-        if type(obj) == Fungus:
+        if obj ^ Fungus:
             if self.elements[1].sadržaj == 'name':
                 ret = DotList.ili_samo([obj.name, *self.elements[2:]])
             elif self.elements[1].sadržaj == 'latin':
@@ -1500,7 +1500,7 @@ class DotList(AST):
                 raise SemantičkaGreška('Nepoznat atribut Fungus objekta: ' + self.elements[1].sadržaj)
             if ret ^ DotList:
                 return ret.vrijednost()
-        elif type(obj) == Tree:
+        elif obj ^ Tree:
             if self.elements[1].sadržaj == 'spec':
                 return obj.spec
             elif self.elements[1].sadržaj == 'gen':
@@ -1531,7 +1531,7 @@ class Assignment(AST):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
         if self.variable ^ T.IME:
             tmp = self.expression.vrijednost()
-            if type(tmp) == Fungus or type(tmp) == DNA:
+            if tmp ^ Fungus or tmp ^ DNA:
                 rt.okolina[-1][self.variable] = self.expression.vrijednost()
             else:
                 rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
@@ -1670,7 +1670,7 @@ class ConstructorCall(AST):
                     return true
                 else:
                     return false
-            elif type(arg) == Number: # konverzija Number->Bool: False akko 0
+            elif arg ^ Number: # konverzija Number->Bool: False akko 0
                 if arg.value == 0:
                     return false
                 else:
@@ -1680,7 +1680,7 @@ class ConstructorCall(AST):
                     return false
                 else:
                     return true
-            elif type(arg) == Edibility:
+            elif arg ^ Edibility:
                 if arg.kind == T.EDIBLE:
                     return true
                 else:
@@ -1697,7 +1697,7 @@ class ConstructorCall(AST):
                     return Number(1, None)
                 else:
                     return Number(0, None)
-            elif type(arg) == Number:
+            elif arg ^ Number:
                 return arg
             elif type(arg) == str: # konverzija String->Number: koristimo Pythonovu semantiku
                 tmp = float(arg)
@@ -1714,7 +1714,7 @@ class ConstructorCall(AST):
                     return 'True'
                 else:
                     return ''
-            elif type(arg) == Number: # konverzija Number->String: kao Python
+            elif arg ^ Number: # konverzija Number->String: kao Python
                 tmp = str(arg.value)
                 if arg.unit:
                     tmp += ' ' + arg.unit.sadržaj
@@ -1733,7 +1733,7 @@ class ConstructorCall(AST):
                     try:
                         if type(el) == str:
                             el = int(el)
-                        elif type(el) == Number:
+                        elif el ^ Number:
                             el = int(el.value)
                         else:
                             raise SemantičkaGreška('Nepodržan tip za dan/mjesec/godinu')
@@ -1745,7 +1745,7 @@ class ConstructorCall(AST):
                         try:
                             if type(el) == str:
                                 el = int(el)
-                            elif type(el) == Number:
+                            elif el ^ Number:
                                 el = int(el.value)
                             else:
                                 raise SemantičkaGreška('Nepodržan tip za vrijeme')
@@ -1766,24 +1766,24 @@ class ConstructorCall(AST):
                     return tmp
             else:
                 arg = self.arguments[0].vrijednost()
-                if type(arg) != Date or type(arg) != DateTime:
+                if not arg ^ Date or not arg ^ DateTime:
                     raise SemantičkaGreška('Datum/vrijeme se može konstruirati samo iz literala datuma/vremena')
                 return arg                    
             
         elif self.type ^ T.FUNGUS: 
             # nema konvertirajućeg konstruktora
-            args = (arg.vrijednost() for arg in self.arguments)
+            args = [arg.vrijednost() for arg in self.arguments]
             date = None
             if type(args[0]) != str:
                 raise SemantičkaGreška('Prvi argument konstruktora za Fungus mora biti ime')
             if type(args[1]) != str:
                 raise SemantičkaGreška('Drugi argument konstruktora za Fungus mora biti latinsko ime')
-            if type(args[2]) != DNA:
+            if not args[2] ^ DNA:
                 raise SemantičkaGreška('Treći argument konstruktora za Fungus mora biti DNA')
-            if type(args[3]) != Tree:
+            if not args[3] ^ Tree:
                 raise SemantičkaGreška('Četvrti argument konstruktora za Fungus mora biti taksonomija')
             if len(args) == 5: # prihvaćamo i eksplicitan vrijeme unošenja uzorka
-                if type(args[4]) != Date and type(args[4]) != DateTime:
+                if not  args[4] ^ Date and not args[4] ^ DateTime:
                     raise SemantičkaGreška('Peti (opcionalni) argument konstruktora za Fungus mora biti datum/vrijeme')
                 date = args[4]
             else: # ako nema vremena, uzima se trenutno
