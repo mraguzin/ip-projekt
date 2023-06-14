@@ -175,6 +175,7 @@ class T(TipoviTokena):
     class DATUM(Token):
         def vrijednost(self):
             try:
+                print(self.sadržaj)
                 return [int(dio) for dio in self.sadržaj.split('.')[:-1]]
             except ValueError:
                 raise SemantičkaGreška('Krivi format datuma')
@@ -1074,14 +1075,22 @@ class P(Parser):
         date = p >> T.DATUM
         #date.validiraj() # je li ovo ok datum, čisto sintaktički?
         date = date.vrijednost()
-        minutes = 0
-        seconds = 0
+        minutes = None
+        seconds = None
         if hour := p >= T.BROJ:
             p >> T.COLON
             minutes = p >> T.BROJ
             if p >= T.COLON:
                 seconds = p >> T.BROJ
-            tmp = DateTime(date, int(hour.sadržaj), int(minutes.sadržaj), int(seconds.sadržaj))
+            if minutes is not None:
+                minutes = int(minutes.sadržaj)
+            else:
+                minutes = 0
+            if seconds is not None:
+                seconds = int(seconds.sadržaj)
+            else:
+                seconds = 0
+            tmp = DateTime(date, int(hour.sadržaj), minutes, seconds)
             tmp.validate()
             return tmp
         else:
