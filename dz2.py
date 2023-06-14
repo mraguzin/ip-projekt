@@ -281,7 +281,8 @@ def miko(lex):
             yield lex.literal(T)
         elif znak == '"': # mislim da za ovakav jezik nema smisla podržavati mnoge escape sekvence, jer ovo nije primarno programski jezik
             while True:
-                idući = lex - {'\\', '"'}
+                lex < {'\\', '"'}
+                idući = lex.čitaj()
                 if idući == '\\':
                     lex.čitaj()
                 elif idući == '"':
@@ -613,7 +614,7 @@ class P(Parser):
             if p > T.FUNCTION:
                 functions.append(p.fun())
             else:   
-                statements.append(*p.stmts())
+                statements += p.stmts()
 
         if len(statements) == 0:
             raise p.greška('Program je prazan')
@@ -655,7 +656,7 @@ class P(Parser):
                 statements.append(Return(ret))
             else:
                 more = p.stmts()
-                statements.append(*more)
+                statements += more
 
         return statements
 
@@ -690,7 +691,7 @@ class P(Parser):
                 p >> T.SEMI
                 statements.append(el)
             else:
-                statements.append(*p.stmts(more))
+                statements += p.stmts(more)
 
         return statements
         
@@ -776,7 +777,8 @@ class P(Parser):
         left = p.expr0()
         if p >= T.ASGN:
             # imamo pridruživanje, pa lijevo smiju biti samo: imena, dot-liste
-            if not left ^ {T.IME, DotList}:
+            print(type(left))
+            if not (type(left) == T.IME or type(left) == DotList):
                 raise SemantičkaGreška('Pridruživati možete samo varijabli ili nekom članu složenijeg objekta')
             right = p.expr()
             if right ^ Assignment:
@@ -962,7 +964,7 @@ class P(Parser):
     def fact(p):
         bots = [p.bot()]
         while p >= T.DOT: 
-            bots.append(p.bot())
+            bots.append(p.bot(True))
         if len(bots) > 1:
             if not bots[0] ^ ConstructorCall and not bots[0] ^ T.IME:
                 raise SemantičkaGreška('Početak liste s točkama mora biti konstruiran objekt ili ime')
@@ -974,15 +976,21 @@ class P(Parser):
 
     # cons -> type OTV args? ZATV   # konstruktori za builtin tipove
     # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
-    def bot(p):
+    def bot(p,dotted=False):
         if var := p > T.IME:
+            if dotted:
+                p >> T.IME
+                return var # ovo je ime nekog svojstva, ne možemo dalje analizirati
             if is_in_symtable(var):# inače je čisto pridruživanje varijable ili čisto pojavljivanje varijable (po mogućnosti unutar složenijeg izraza)
                 p >> T.IME # pojedi, inače ne jer call() mora vidjeti ime!
                 return var
             # ovo mora biti poziv funkcije 'var'
             if var in rt.funtab:
                 return p.call()
-            else: 
+            else:
+                print('ime je sada=',var)
+                for whatever in rt.symtab[-1]:
+                    print(whatever)
                 raise p.greška('Ime ' + var.sadržaj + ' nije viđeno do sada')   
         elif p > {T.READ, T.WRITE, T.SETPARAM}:
             return p.call()
@@ -1976,5 +1984,4 @@ class Declaration(AST):
 
     def izvrši(self):
         rt.okolina[-1][self.variable] = None
-
 
