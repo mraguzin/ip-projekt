@@ -105,7 +105,7 @@ class T(TipoviTokena):
             if len(args) != 1:
                 raise SemantičkaGreška('Konstruktor Edibility-ja traži jednu od kontekstualnih ključnih riječi za jestivost/toksičnost')
             kind = args[0]
-            if not kind ^ {T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE}:
+            if not (kind ^ T.DEADLY or kind ^ T.TOXIC1 or kind ^ T.TOXIC2 or kind ^ T.EDIBLE):
                 raise SemantičkaGreška('Edibility specifikacija mora biti jedna od predefiniranih...')
             return True
     class DNA(Token):
@@ -1068,10 +1068,12 @@ class P(Parser):
 
     def list(p):
         p >> T.LUGL
-        if not p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        #if not p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
+        if not (p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}):
             return List([])
         exprs = [p.expr()]
         while p >= T.COMMA: exprs.append(p.expr())
+        p >> T.DUGL
         return List(exprs)
     
     def edb(p):
