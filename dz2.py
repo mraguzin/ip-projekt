@@ -650,7 +650,7 @@ class P(Parser):
         # i to će se razriješiti u odgovarajućoj funkciji
         if not more and len(elements) == 0:
             raise p.greška('Očekivana jedna naredba')
-        return Statements(elements)
+        return elements
     
     def stmts2(p, more=True):
         statements = []
@@ -661,7 +661,7 @@ class P(Parser):
             else:
                 statements.append(*p.stmts(more))
 
-        return Statements(statements)
+        return statements
         
     
     # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
