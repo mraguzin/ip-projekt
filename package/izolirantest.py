@@ -646,11 +646,13 @@ class P(Parser):
             p >> T.ZATV
         p >> T.LVIT
         rt.symtab.append(Memorija()) # push
+        for param in params:
+            rt.symtab[-1][param] = param
         body = p.body()
         rt.symtab.pop()
         p >> T.DVIT
         rt.funtab[name] = Function(name, params, body)
-        return rt.symtab[-1][name]
+        return rt.funtab[name]
 
     def params(p):
         names = [p >> T.IME]
@@ -667,7 +669,7 @@ class P(Parser):
                 statements.append(Return(ret))
             else:
                 more = p.stmts()
-                statements += more
+                statements.append(more)
 
         return statements
 
@@ -770,7 +772,7 @@ class P(Parser):
                 p >> T.ZATV
                 return Call(fun, args)
             
-            fun = rt.funtab[fun]
+            #fun = rt.funtab[fun]
         elif fun := p >= T.SETPARAM:
             p >> T.OTV
             args = {}
@@ -792,7 +794,8 @@ class P(Parser):
         args = []
         if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
-        fun.validate_call(*args)
+        #fun.validate_call(*args)
+        rt.funtab[fun].validate_call(*args)
         p >> T.ZATV
         return Call(fun, args)
     
@@ -1002,7 +1005,7 @@ class P(Parser):
 
     # cons -> type OTV args? ZATV   # konstruktori za builtin tipove
     # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
-    def bot(p,dotted=False):
+    def bot(p,dotted=False): # dotted je za kada smo u . list ili u parametarskoj listi pri definiciji funkcije
         if var := p > T.IME:
             if dotted:
                 p >> T.IME
@@ -1262,7 +1265,7 @@ class Return(AST):
     expression: ...
 
     def izvrši(self):
-        raise NelokalnaKontrolaToka(self.expression.vrijednost())
+        raise Povratak(self.expression.vrijednost())
 
 class Ternary(AST):
     left: ...
@@ -2107,15 +2110,26 @@ let i := 10;
 for i {
  print(i);
 }
-
 """
 
-#P(program3)
-#P(program2)
-P(program4)
-P(program5)
-#P(program6)
-P(program7)
-p8 = P(program8)
-p8.izvrši()
-P(program9).izvrši()
+program10 = """
+function mojafun(a, b) {
+let null;
+  if(a) {
+   null := 1;
+  } else {
+   null := 0;
+  }
+  return null;
+}
+
+print(mojafun(true, 0));
+"""
+
+# P(program4)
+# P(program5)
+# P(program7)
+# p8 = P(program8)
+# p8.izvrši()
+# P(program9).izvrši()
+P(program10).izvrši()
