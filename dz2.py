@@ -175,7 +175,7 @@ class T(TipoviTokena):
     class DATUM(Token):
         def vrijednost(self):
             try:
-                return [int(dio) for dio in self.sadržaj.split('.')]
+                return [int(dio) for dio in self.sadržaj.split('.')[:-1]]
             except ValueError:
                 raise SemantičkaGreška('Krivi format datuma')
             
@@ -1899,7 +1899,7 @@ class Date(AST):
     def vrijednost(self):
         return self
     
-    def validiraj(self):
+    def validate(self):
             dijelovi = self.date
             if dijelovi[0] < 0 or dijelovi[0] > 31 or dijelovi[1] > 12 or dijelovi[1] < 1 or dijelovi[2] < 1000 or dijelovi[2] > 9999:
                 raise SemantičkaGreška('Nemoguć datum')
@@ -1928,8 +1928,8 @@ class DateTime(Date):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def validiraj(self):
-        super().validiraj()
+    def validate(self):
+        super().validate()
         if self.hours < 0 or self.hours >= 24:
             raise SemantičkaGreška('Sati moraju biti iz [0,24>')
         if self.minutes < 0 or self.minutes >= 60:
