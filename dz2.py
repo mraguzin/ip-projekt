@@ -39,6 +39,7 @@ lako spremiti cijeli niz objekata.
 from vepar import *
 import copy
 import datetime
+import jsonpickle
 
 class T(TipoviTokena):
     EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA, DOT = '=<>+-*/(){}[];:?,.'
@@ -1162,6 +1163,9 @@ class Ternary(AST):
     left: ...
     middle: ...
     right: ...
+    
+    def izvrši(self):
+        self.vrijednost()
 
     def vrijednost(self):
         if self.left.vrijednost():
@@ -1173,6 +1177,9 @@ class Binary(AST):
     op: ...
     left: ...
     right: ...
+
+    def izvrši(self):
+        self.vrijednost()
 
     def vrijednost(self):
         if self.op ^ T.CROSSING:
@@ -1275,6 +1282,9 @@ class Unary(AST):
     op: ...
     child: ...
 
+    def izvrši(self):
+        self.vrijednost()
+
     def vrijednost(self):
         if self.op ^ T.MUTATION: pass #TODO
         elif self.op ^ T.SELECTION: pass #TODO
@@ -1323,6 +1333,9 @@ def unit_conv(val, src, dest):
 
 class Nary(AST):
     pairs: ... # (op,expr) pairs
+
+    def izvrši(self):
+        self.vrijednost()
 
     def get_list_length(self):
         return self.pairs[0][1].get_list_length()
@@ -1464,14 +1477,26 @@ class Number(AST):
     value: ...
     unit: ...
 
+    def izvrši(self):
+        raise SemantičkaGreška('Ovo nije naredba')
+
     def vrijednost(self):
         return self # ovo treba biti dno što se tiče brojeva; value je uvijek konkretan float ovdje
 
     def get_list_length(self):
         return None
+    
+    def to_string(self):
+        tmp = str(self.value)
+        if self.unit:
+            tmp += ' ' + self.unit.sadržaj
+        return tmp
 
 class Literal(AST):
     value: ...
+
+    def izvrši(self):
+        raise SemantičkaGreška('Ovo nije naredba')
 
     def vrijednost(self):
         if self.value ^ T.STRING:
@@ -1486,14 +1511,21 @@ class Literal(AST):
 
     def get_list_length(self):
         return None
+        
+    def to_string(self):
+        return self.value.vrijednost()
+    
 
 class ConstructorCall(AST):
     type: ...
     arguments: ...
 
-    def vrijednost(self): #TODO: treba popraviti ovdje što vraćam
-        true = Literal(T.TRUE)
-        false = Literal(T.FALSE)
+    def izvrši(self):
+        self.vrijednost()
+
+    def vrijednost(self):
+        true = True
+        false = False
                         
         if self.type ^ T.BOOL:
             if len(self.arguments) != 1:
@@ -1545,18 +1577,18 @@ class ConstructorCall(AST):
             arg = self.arguments[0].vrijednost()
             if type(arg) == bool: # konverzija Bool->String: daje 'True' za istinu, a inače prazan string, kako bi bilo konzistentno s obrnutom konverzijom
                 if arg:
-                    return Literal('True')
+                    return 'True'
                 else:
-                    return Literal('')
+                    return ''
             elif type(arg) == Number: # konverzija Number->String: kao Python
                 tmp = str(arg.value)
                 if arg.unit:
                     tmp += ' ' + arg.unit.sadržaj
-                return Literal(tmp)
+                return tmp
             elif type(arg) == str:
-                return Literal(arg)
+                return arg
             else:
-                return arg.to_string() #TODO: ovo mora biti u svakom objektu i daje JSON dump!
+                return arg.to_string()
             
         elif self.type ^ T.DATETIME:
             if len(self.arguments) >= 3:
@@ -1591,9 +1623,13 @@ class ConstructorCall(AST):
                         seconds = el[2]
                     if len(el) > 3:
                         raise SemantičkaGreška('Konstrukcija vremena uzima najviše tri argumenta: sati, minute i sekunde')
-                    return DateTime([day, month, year], hours, minutes, seconds)
+                    tmp = DateTime([day, month, year], hours, minutes, seconds)
+                    tmp.validiraj()
+                    return tmp
                 else:
-                    return Date([day, month, year])
+                    tmp = Date([day, month, year])
+                    tmp.validiraj()
+                    return tmp
             else:
                 arg = self.arguments[0].vrijednost()
                 if type(arg) != Date or type(arg) != DateTime:
@@ -1602,7 +1638,6 @@ class ConstructorCall(AST):
             
         elif self.type ^ T.FUNGUS: 
             # nema konvertirajućeg konstruktora
-            # imamo bar 4 argumenta: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
             args = (arg.vrijednost() for arg in self.arguments)
             date = None
             if type(args[0]) != str:
@@ -1633,6 +1668,41 @@ class ConstructorCall(AST):
 
     def get_list_length(self):
         return None
+    
+class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser konstruira već služi samo interpreteru; koristimo AST baznu klasu jer pruža neke
+    # zgodne defaulte
+    # imamo bar 4 argumenta: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
+    name: ...
+    latin: ...
+    dna: ...
+    taxonomy: ...
+    datetime: ...
+
+    def to_string(self):
+        tmp = 'Name: ' + self.name + '\n'
+        +     'Latin name: ' + self.latin + '\n'
+        +     'DNA: ' + self.dna.to_string() + '\n'
+        +     'Taxonomy: ' + self.taxonomy.to_string() + '\n'
+        +     'Time found: ' + self.datetime.to_string()
+        return tmp
+
+#SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
+class Tree:
+    species: ...
+    genus: ...
+    family: ...
+    order: ...
+    klasa: ...
+    phylum: ...
+    kingdom: ...
+
+    def to_string(self):
+        tmp = ''
+        for prop in ('species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom'):
+            val = getattr(self, prop, None)
+            if val:
+                tmp += prop + ': ' + val + '\n'
+        return tmp
 
 class Date(AST):
     date: ... #(day,month,year) triple
@@ -1649,6 +1719,9 @@ class Date(AST):
 
     def get_list_length(self):
         return None
+    
+    def to_string(self):
+        return self.date[0] + '.' + self.date[1] + '.' + self.date[2] + '.'
 
 class DateTime(Date):
     hours: ...
@@ -1668,11 +1741,22 @@ class DateTime(Date):
     def get_list_length(self):
         return None
     
+    def to_string(self):
+        tmp = super().to_string()
+        tmp += ' ' + self.hours + ':' + self.minutes + ':' + self.seconds
+        return tmp
+    
 class DNA(AST):
     bases: ...
 
     def vrijednost(self):
         return self
+    
+    def to_string(self):
+        tmp = ''
+        for b in self.bases:
+            tmp += b
+        return tmp
 
 class List(DotList):
     def vrijednost(self):
@@ -1680,6 +1764,13 @@ class List(DotList):
     
     def get_list_length(self):
         return len(self.elements)
+    
+    def to_string(self):
+        tmp = '['
+        for el in self.elements:
+            tmp += el.to_string() + ', '
+        tmp += ']'
+        return tmp
 
 class Edibility(AST):
     kind: ...
@@ -1689,8 +1780,14 @@ class Edibility(AST):
 
     def get_list_length(self):
         return None
+    
+    def to_string(self):
+        return self.kind.sadržaj
 
 class Declaration(AST):
     variable: ...
+
+    def izvrši(self):
+        rt.okolina[-1][self.variable] = None
 
 
