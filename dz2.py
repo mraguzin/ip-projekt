@@ -788,7 +788,7 @@ class P(Parser):
         return tree
     
     def mut(p):
-        if op := p >> T.MUTATION:
+        if op := p >= T.MUTATION:
             tmp = p.mut()
             if not is_fungus(tmp):
                 raise SemantičkaGreška('Samo se gljive ili njihove liste mogu mutirati')
