@@ -88,7 +88,7 @@ class T(TipoviTokena):
         def validate_call(self, *args):
             if len(args) != 4 or len(args) != 5: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
                 raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
-            if not is_stringetic(args[0]) or is_list(args[0]) or not is_stringetic(args[1]) or is_list(args[1]) or not args[2] ^ {T.IME, DNA} or not(args[3] ^ T.IME or args[3] ^ ConstructorCall and not args[3].type ^ T.TREE):
+            if not is_stringetic(args[0]) or is_list(args[0]) or not is_stringetic(args[1]) or is_list(args[1]) or not (args[2] ^ T.IME or args[2] ^ DNA) or not(args[3] ^ T.IME or args[3] ^ ConstructorCall and not args[3].type ^ T.TREE):
                 raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
             if len(args) == 5 and (not is_datetime(args[4]) or is_list(args[4])):
                 raise SemantičkaGreška('Opcionalni argument Fungus konstruktora je datum/vrijeme')
@@ -597,7 +597,7 @@ def units_check(*args):
 def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *rezultira* u listi; uočimo da to ne moraju direktno biti liste, već i drugi
     # izrazi za koje statički znamo da daju listu (tj. da im je vrijednost lista). Kada bismo imali neke operatore koji mogu "suziti" rezultat npr. iz
     # liste operanada dati nekakav "skalar" (OTOH operatori usporedbe < i > nad listama brojeva), onda bi ovo bila složenija funkcija.
-    if node ^ Binary and node.op ^ {T.EQ, T.NEQ}: # ipak imamo ovaj važan poseban slučaj
+    if node ^ Binary and (node.op ^ T.EQ or node.op ^ T.NEQ): # ipak imamo ovaj važan poseban slučaj
         return False 
     return node.get_list_length() is not None
 
@@ -907,7 +907,7 @@ class P(Parser):
                     raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
                 stringetic = False
             if terms[-1][1] ^ List:
-                if len != terms[-1][1].get_list_length():
+                if tlen != terms[-1][1].get_list_length():
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
             terms.append([op, p.term()])
         if len(terms) == 1:
@@ -1148,6 +1148,8 @@ class ForLoop(AST):
 
     def izvrši(self):
         idx, var = get_symtab(self.loop_variable)
+        if not var ^ Number:
+            raise SemantičkaGreška('Varijabla u for petlji mora biti numerička')
         while self.loop_variable.vrijednost() != 0:
             try:
                 self.body_statements.izvrši()
@@ -1179,7 +1181,7 @@ class Call(AST):
     arguments: ...
 
     def vrijednost(self):
-        if self.function ^ {T.SETPARAM, T.READ, T.WRITE}: # builtins
+        if self.function ^ T.SETPARAM or self.function ^ T.READ or self.function ^ T.WRITE: # builtins
             return self.function.izvrši(*self.arguments)
         
         rt.okolina.append(Memorija())
@@ -1987,9 +1989,6 @@ class Declaration(AST):
     def izvrši(self):
         rt.okolina[-1][self.variable] = None
 
-#P('let tax := Tree(); tax.phyl := "ovo";')
-#P('let abc := "abc"; let lista := [1,2,3];  let lista2 := ["a", 20, 30]; let lista3 := ["a", [1,2], 30]; ')
-P('let var := "nešto";  if(var) {var:=1;}')
 
 program1 = """
 let var := "nešto";
@@ -2014,3 +2013,4 @@ let accum1 := 42;
 accum1 := accum1 + 1;
 """
 P(program3)
+P(program2)

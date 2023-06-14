@@ -476,12 +476,12 @@ def listcheck(checker, *args): # rekurzivna provjera kompatibilnosti listi
             return True
         
         # svi su liste
-        len = None
+        klen = None
         for list in args:
-            if len is None:
-                len = list.get_list_length()
+            if klen is None:
+                klen = list.get_list_length()
             else:
-                if len != list.get_list_length():
+                if klen != list.get_list_length():
                     return False
         
         for els in zip(*args):
@@ -523,12 +523,12 @@ def listcheck_numberunits(*args):
             return True
         
         # svi su liste
-        len = None
+        klen = None
         for list in args:
-            if len is None:
-                len = list.get_list_length()
+            if klen is None:
+                klen = list.get_list_length()
             else:
-                if len != list.get_list_length():
+                if klen != list.get_list_length():
                     return False
         
         for els in zip(*args):
@@ -559,12 +559,12 @@ def units_check(*args):
             unit = arg.unit
         
         # svi su liste
-    len = None
+    klen = None
     for list in args:
-        if len is None:
-            len = list.get_list_length()
+        if klen is None:
+            klen = list.get_list_length()
         else:
-            if len != list.get_list_length():
+            if klen != list.get_list_length():
                 return False
         
     for els in zip(*args):
@@ -907,7 +907,7 @@ class P(Parser):
                     raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
                 stringetic = False
             if terms[-1][1] ^ List:
-                if len != terms[-1][1].get_list_length():
+                if tlen != terms[-1][1].get_list_length():
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
             terms.append([op, p.term()])
         if len(terms) == 1:
@@ -1731,7 +1731,7 @@ class ConstructorCall(AST):
                 day = self.arguments[0].vrijednost()
                 month = self.arguments[0].vrijednost()
                 year = self.arguments[0].vrijednost()
-                for el in (day, month, year):
+                for el in [day, month, year]:
                     try:
                         if type(el) == str:
                             el = int(el)
