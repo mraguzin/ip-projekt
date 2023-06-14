@@ -1741,7 +1741,7 @@ class ConstructorCall(AST):
                 if len(self.arguments) > 3:
                     minutes = 0
                     seconds = 0
-                    for el in (comp.vrijednost() for comp in self.arguments[3:]):
+                    for el in [comp.vrijednost() for comp in self.arguments[3:]]:
                         try:
                             if type(el) == str:
                                 el = int(el)
@@ -1837,7 +1837,7 @@ class Tree:
     kingdom: ...
 
     def __eq__(self, other):
-        for prop in ('species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom'):
+        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
             if hasattr(self, prop) ^ hasattr(other, prop):
                 return False
             elif hasattr(self, prop) and hasattr(other, prop):
@@ -1852,7 +1852,7 @@ class Tree:
 
     def to_string(self):
         tmp = ''
-        for prop in ('species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom'):
+        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
             val = getattr(self, prop, None)
             if val:
                 tmp += prop + ': ' + val + '\n'
