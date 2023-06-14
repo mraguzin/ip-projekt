@@ -14,7 +14,7 @@ standardne aritmetičke i logičke operatore iz C-a (uključujući i ternarni). 
     radi samo nad *listama* jedinki! Općenito želimo da sva tri također rade nad listama radi potpunosti.
     * deklaracija gljive: na neki način i ovo je
     operator (a la operator new u C++u) koji pripremi sve potrebne info o gljivi: hrvatsko ime, stručno latinsko ime,
-    klasifikaciju (hijerarhija), mjesto pronalaska, datum, masa,... TODO: što sve tu treba? 
+    klasifikaciju (hijerarhija), mjesto pronalaska, datum, masa,...
     * operator deklaracije hijerarhije: ovo služi da proglasi neku varijablu hijerarhijom, kako bi se ona onda mogla koristiti pri deklaraciji pojedine gljive.
     Sa hijerarhijama se *ne može* raditi izvan varijabli, tj. one ne mogu biti literali (unose se peacemeal)!
     * operator dodavanja novog elementa hijerarhije u već postojeću: ako je hijerarhija u varijabli 'hij', onda hij.fam = 'famxyz';
@@ -855,7 +855,7 @@ class P(Parser):
         terms = [[T.PLUS, p.term()]]
         arithmetic = True
         stringetic = True
-        len = terms[-1][1].get_list_length()
+        tlen = terms[-1][1].get_list_length()
         while op := p >= {T.PLUS, T.MINUS}:
             if terms[-1][1] ^ Assignment:
                 raise GreškaPridruživanja
@@ -897,7 +897,7 @@ class P(Parser):
                     raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
                 stringetic = False
             if terms[-1][1] ^ List:
-                if len != terms[-1][1].get_list_length():
+                if tlen != terms[-1][1].get_list_length():
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
         if not listcheck_numberunits(*[el[1] for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
             # već provjerio sve što se tiče dopuštenih operacija, što uključuje i korektnost jedinica
@@ -906,7 +906,7 @@ class P(Parser):
     
     def term(p):
         facts = [[T.PUTA, p.fact()]]
-        len = facts[-1][1].get_list_length()
+        flen = facts[-1][1].get_list_length()
         while op := p >= {T.PUTA, T.DIV}:
             if not is_arithmetic(facts[-1][1]):
                 raise SemantičkaGreška('Množenje i dijeljenje moguće samo s brojevnim operandima/listama')
@@ -916,7 +916,7 @@ class P(Parser):
             #if left ^ Number and left.unit and not (right ^ Number and not right.unit) or right ^ Number and right.unit and not (left ^ Number and not left.unit):
              #   raise SemantičkaGreška('Množenje/dijeljenje dimenzionalnom veličinom je dozvoljeno samo s (bezdimenzionalnim) skalarom')
             if facts[-1][1] ^ List:
-                if facts[-1][1].get_list_length() != len:
+                if facts[-1][1].get_list_length() != flen:
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
                 # ako se liste pojavljuju u množenju/dijeljenju, to je dopustivo i u proizvoljnoj kombinaciji sa skalarima, s prirodnom
                 # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine ("broadcasting")
@@ -1099,13 +1099,6 @@ class Function(AST):
         # samo što mi ne podržavamo poziv funkcije koja još nije do kraja definirana zbog jednoprolaznosti parsera (dakle, nije podržavana rekurzija u
         # punom smislu)
         for stmt in self.body:
-            stmt.izvrši()
-
-class Statements(AST):
-    statements: ...
-
-    def izvrši(self):
-        for stmt in self.statements:
             stmt.izvrši()
 
 class ForLoop(AST):
@@ -1767,7 +1760,7 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
     taxonomy: ...
     timestamp: ...
 
-    def __eq__(self, other):
+    def __eq__(self, other): # za usporedbu gljiva uzimamo latinski naziv kao primarni ključ
         return self.latin == other.latin
     
     def __ne__(self, other):
