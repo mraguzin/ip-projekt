@@ -59,10 +59,7 @@ class T(TipoviTokena):
     FUNCTION = 'function'
     FOR, IF = 'for', 'if'
     TRUE, FALSE = 'true', 'false'
-    SETPARAM = 'setParam'  #ovo je builtin funkcija koja služi interaktivnoj izmjeni/prilagodbi globalnih parametara evolucijskih operatora
-    # kako bi se dobili željeni
-    # populacijski rezultati kroz simulirane generacije gljiva. Sami parametri nisu hardkodirani u jeziku; predaju se kao param:val parovi
-    #  i interpreter je dužan nositi se s njima kako spada. Npr. setParam("param1:")
+
 
     #class DOT(Token): pass
     class MUTATION(Token): pass
@@ -185,17 +182,51 @@ class T(TipoviTokena):
         def get_list_length(self):
             return None
         
-        
+    class SETPARAM(Token):  #ovo je builtin funkcija koja služi interaktivnoj izmjeni/prilagodbi globalnih parametara evolucijskih operatora
+    # kako bi se dobili željeni populacijski rezultati kroz simulirane generacije gljiva.
+    # Sami parametri nisu hardkodirani u jeziku ali neki se očekuju pri izvršavanju genetskih operacija. Parametri se predaju kao param:val parovi
+    #  i interpreter je dužan nositi se s njima kako spada. Npr. setParam("param1:")
+        literal = 'setParam'
+        def izvrši(self, *args):
+            for key,val in args.items():
+                rt.params[key] = val
+            return None
             
     class READ(Token):
         literal = 'read'
+        def izvrši(self, *args):
+            arg = args[0].vrijednost()
+            if type(arg) != str:
+                raise SemantičkaGreška('Očekivan filename string')
+            file = open(arg, 'r')
+            lines = ''
+            try:
+                lines = file.readlines()
+            except: raise SemantičkaGreška('Nije uspjelo otvaranje ' + arg)
+            try:
+                return jsonpickle.decode(lines)
+            except: raise SemantičkaGreška('Parsiranje JSON-a nije uspjelo')
         def validate_call(self, *args):
             if len(args) != 1:
-                raise SintaksnaGreška('read funkcija očekuje jedan argument: ime tekstualne datoteke za pročitati')
+                raise SintaksnaGreška('read funkcija očekuje jedan argument: ime JSON datoteke za pročitati')
         def get_list_length(self):
             return None
     class WRITE(Token):
         literal = 'write'
+        def izvrši(self, *args):
+            fname = args[0].vrijednost()
+            if type(fname) != str:
+                raise SemantičkaGreška('Prvi argument od write() treba biti filename string')
+            file = open(fname, 'w')
+            things = []
+            for arg in args[1:]:
+                things.append(arg)
+            if len(things) == 1:
+                file.write(jsonpickle.encode(things[0]))
+            else:
+                file.write(jsonpickle.encode(things)) # strpat ćemo sve u listu ako korisnik šalje više objekata iz programa za zapis; oni će mu se onda
+                # pri učitavanju vratiti kao lista
+            return None
         def validate_call(self, *args):
             if len(args) < 2:
                 raise SemantičkaGreška('write funkcija očekuje bar dva argumenta: 1:datoteku, 2: objekt, više objekata ili listu objekata za zapisati')
@@ -319,7 +350,7 @@ class GreškaPridruživanja(SintaksnaGreška): """ Zanemariti ovo; gramatika se 
 
 def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li trenutno deklariran symbol; ne podržavamo ugnježđavanje funkcijskih
     # blokova, pa je max.dubina stoga 2 (globalan i funkcijski scope)
-    for i in range(len(rt.symtab)-1, 0, -1):
+    for i in range(len(rt.symtab)-1, -1, -1):
         if symbol in rt.symtab[i]:
             return True
         
@@ -331,7 +362,7 @@ def is_function_defined(symbol):
     return False
 
 def get_symtab(symbol):
-    for i in range(len(rt.symtab)-1, 0, -1):
+    for i in range(len(rt.symtab)-1, -1, -1):
         if symbol in rt.symtab[i]:
             return i, rt.symtab[i]
         
@@ -1138,6 +1169,9 @@ class Call(AST):
     arguments: ...
 
     def vrijednost(self):
+        if self.function ^ {T.SETPARAM, T.READ, T.WRITE}: # builtins
+            return self.function.izvrši(*self.arguments)
+        
         rt.okolina.append(Memorija())
         i = 0
         for param in rt.funtab[self.function].parameter_names:
@@ -1354,9 +1388,11 @@ class Nary(AST):
                 if type(accum) == list:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                    for el1,el2 in zip(accum, tmp):
+                    for i in range(len(accum)):
+                        el1 = accum[i]
+                        el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
-                        el1 = new.vrijednost() # rekurzija, mijenja accum TODO popravi ovo...
+                        accum[i] = new.vrijednost() # rekurzija, mijenja accum
                 elif type(accum) == type(tmp) == Number:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri oduzimanju')
@@ -1372,9 +1408,11 @@ class Nary(AST):
                 if type(accum) == list:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                    for el1,el2 in zip(accum, tmp):
+                    for i in range(len(accum)):
+                        el1 = accum[i]
+                        el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
-                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                        accum[i] = new.vrijednost() # rekurzija, mijenja accum
                 elif type(accum) == type(tmp) == Number or type(accum) == type(tmp) == str:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri zbrajanju')
@@ -1390,9 +1428,11 @@ class Nary(AST):
                 if type(accum) == list:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                    for el1,el2 in zip(accum, tmp):
+                    for i in range(len(accum)):
+                        el1 = accum[i]
+                        el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
-                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                        accum[i] = new.vrijednost() # rekurzija, mijenja accum
                 elif type(accum) == type(tmp) == Number:
                     if unit and tmp.unit:
                         raise SemantičkaGreška('Nije moguće množiti dvije dimenzionalne veličine')
@@ -1410,9 +1450,11 @@ class Nary(AST):
                 if type(accum) == list:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                    for el1,el2 in zip(accum, tmp):
+                    for i in range(len(accum)):
+                        el1 = accum[i]
+                        el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
-                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                        accum[i] = new.vrijednost() # rekurzija, mijenja accum
                 elif type(accum) == type(tmp) == Number:
                     if unit and tmp.unit:
                         raise SemantičkaGreška('Nije moguće dijeliti dvije dimenzionalne veličine')
