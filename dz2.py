@@ -88,7 +88,7 @@ class T(TipoviTokena):
         def validate_call(self, *args):
             if len(args) != 4 or len(args) != 5: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
                 raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
-            if not is_stringetic(args[0]) or is_list(args[0]) or not is_stringetic(args[1]) or is_list(args[1]) or not args[2] ^ {T.IME, DNA} or not(args[3] ^ T.IME or args[3] ^ ConstructorCall and not args[3].type ^ T.TREE):
+            if not is_stringetic(args[0]) or is_list(args[0]) or not is_stringetic(args[1]) or is_list(args[1]) or not (args[2] ^ T.IME or args[2] ^ DNA) or not(args[3] ^ T.IME or args[3] ^ ConstructorCall and not args[3].type ^ T.TREE):
                 raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
             if len(args) == 5 and (not is_datetime(args[4]) or is_list(args[4])):
                 raise SemantičkaGreška('Opcionalni argument Fungus konstruktora je datum/vrijeme')
@@ -374,11 +374,11 @@ def get_symtab(symbol):
     # * operator križanja. Npr. fungus1 ⊗ fungus2; obavlja križanje dvije gljive i vraća njihovo "dijete"
     # * operator selekcije. Npr. [fungus1,fungus2,fungus3]⊙; 
 def is_fungus(tree):
-    if tree ^ Unary and tree.op ^ {T.MUTATION, T.SELECTION}:
+    if tree ^ Unary and (tree.op ^T.MUTATION or tree.op ^ T.SELECTION):
         return True
     elif tree ^ Binary and tree.op ^ T.CROSSING:
         return True
-    elif tree ^ {T.IME, Call}:
+    elif tree ^ T.IME or tree ^ Call:
         return True
     elif tree ^ ConstructorCall and not tree.type ^ T.FUNGUS:
         return True
@@ -394,9 +394,9 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
             if tree.op ^ T.MINUS:
                 return True
             return False
-        elif tree ^ Nary and tree.pairs[0][0] ^ {T.PLUS, T.MINUS, T.PUTA, T.DIV}:
+        elif tree ^ Nary and (tree.pairs[0][0] ^ T.PLUS or tree.pairs[0][0] ^ T.MINUS or tree.pairs[0][0] ^ T.PUTA or tree.pairs[0][0] ^ T.DIV):
             return True
-        elif tree ^ {Number, T.IME, Call}: # za T.IME mi naravno ne možemo znati pri parsiranju je li to aritmetički ili kakav već tip
+        elif tree ^ Number or tree ^ T.IME or tree ^ Call: # za T.IME mi naravno ne možemo znati pri parsiranju je li to aritmetički ili kakav već tip
             return True
         elif tree ^ ConstructorCall and tree.type ^ T.NUMBER:
             return True
@@ -411,7 +411,7 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
 def is_datetime(tree):
         if tree ^ Unary:
             return False
-        elif tree ^ {Date, DateTime, T.IME, Call}:
+        elif tree ^ Date or tree ^ DateTime or tree ^ T.IME or tree ^ Call:
             return True
         elif tree ^ ConstructorCall and tree.type ^ T.DATETIME:
             return True
@@ -434,7 +434,7 @@ def is_stringetic(tree):
             if not is_stringetic(el):
                 return False
         return True
-    elif tree ^ {T.IME, Call}:
+    elif tree ^ T.IME or tree ^ Call:
             return True
     elif tree ^ ConstructorCall and tree.type ^ T.STRINGTYPE:
         return True
@@ -446,17 +446,17 @@ def is_boolean(tree):
             return True
         return False
     elif tree ^ Binary:
-        if tree.op ^ {T.AND, T.OR, T.EQ, T.NEQ, T.LE, T.LT, T.GE, T.GT}:
+        if tree.op ^ T.AND or tree.op ^ T.OR or tree.op ^ T.EQ or tree.op ^ T.NEQ or tree.op ^ T.LE or tree.op ^ T.LT or tree.op ^ T.GE or tree.op ^ T.GT:
             return True
         return False
-    elif tree ^ Literal and tree.value ^ {T.TRUE, T.FALSE}:
+    elif tree ^ Literal and (tree.value ^ T.TRUE or tree ^ T.FALSE):
         return True
     elif tree ^ List:
         for el in tree.elements:
             if not is_boolean(el):
                 return False
         return True
-    elif tree ^ {T.IME, Call}:
+    elif tree ^ T.IME or tree ^ Call:
             return True
     elif tree ^ ConstructorCall and tree.type ^ T.BOOL:
         return True
@@ -597,7 +597,7 @@ def units_check(*args):
 def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *rezultira* u listi; uočimo da to ne moraju direktno biti liste, već i drugi
     # izrazi za koje statički znamo da daju listu (tj. da im je vrijednost lista). Kada bismo imali neke operatore koji mogu "suziti" rezultat npr. iz
     # liste operanada dati nekakav "skalar" (OTOH operatori usporedbe < i > nad listama brojeva), onda bi ovo bila složenija funkcija.
-    if node ^ Binary and node.op ^ {T.EQ, T.NEQ}: # ipak imamo ovaj važan poseban slučaj
+    if node ^ Binary and (node.op ^ T.EQ or node.op ^ T.NEQ): # ipak imamo ovaj važan poseban slučaj
         return False 
     return node.get_list_length() is not None
 
@@ -1181,7 +1181,7 @@ class Call(AST):
     arguments: ...
 
     def vrijednost(self):
-        if self.function ^ {T.SETPARAM, T.READ, T.WRITE}: # builtins
+        if self.function ^ T.SETPARAM or self.function ^ T.READ or self.function ^ T.WRITE: # builtins
             return self.function.izvrši(*self.arguments)
         
         rt.okolina.append(Memorija())

@@ -374,11 +374,11 @@ def get_symtab(symbol):
     # * operator križanja. Npr. fungus1 ⊗ fungus2; obavlja križanje dvije gljive i vraća njihovo "dijete"
     # * operator selekcije. Npr. [fungus1,fungus2,fungus3]⊙; 
 def is_fungus(tree):
-    if tree ^ Unary and tree.op ^ {T.MUTATION, T.SELECTION}:
+    if tree ^ Unary and (tree.op ^T.MUTATION or tree.op ^ T.SELECTION):
         return True
     elif tree ^ Binary and tree.op ^ T.CROSSING:
         return True
-    elif tree ^ {T.IME, Call}:
+    elif tree ^ T.IME or tree ^ Call:
         return True
     elif tree ^ ConstructorCall and not tree.type ^ T.FUNGUS:
         return True
@@ -394,9 +394,9 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
             if tree.op ^ T.MINUS:
                 return True
             return False
-        elif tree ^ Nary and tree.pairs[0][0] ^ {T.PLUS, T.MINUS, T.PUTA, T.DIV}:
+        elif tree ^ Nary and (tree.pairs[0][0] ^ T.PLUS or tree.pairs[0][0] ^ T.MINUS or tree.pairs[0][0] ^ T.PUTA or tree.pairs[0][0] ^ T.DIV):
             return True
-        elif tree ^ {Number, T.IME, Call}: # za T.IME mi naravno ne možemo znati pri parsiranju je li to aritmetički ili kakav već tip
+        elif tree ^ Number or tree ^ T.IME or tree ^ Call: # za T.IME mi naravno ne možemo znati pri parsiranju je li to aritmetički ili kakav već tip
             return True
         elif tree ^ ConstructorCall and tree.type ^ T.NUMBER:
             return True
@@ -411,7 +411,7 @@ def is_arithmetic(tree): # ove stvari su samo za provjeru pri *parsiranju* tj. r
 def is_datetime(tree):
         if tree ^ Unary:
             return False
-        elif tree ^ {Date, DateTime, T.IME, Call}:
+        elif tree ^ Date or tree ^ DateTime or tree ^ T.IME or tree ^ Call:
             return True
         elif tree ^ ConstructorCall and tree.type ^ T.DATETIME:
             return True
@@ -434,7 +434,7 @@ def is_stringetic(tree):
             if not is_stringetic(el):
                 return False
         return True
-    elif tree ^ {T.IME, Call}:
+    elif tree ^ T.IME or tree ^ Call:
             return True
     elif tree ^ ConstructorCall and tree.type ^ T.STRINGTYPE:
         return True
@@ -446,17 +446,17 @@ def is_boolean(tree):
             return True
         return False
     elif tree ^ Binary:
-        if tree.op ^ {T.AND, T.OR, T.EQ, T.NEQ, T.LE, T.LT, T.GE, T.GT}:
+        if tree.op ^ T.AND or tree.op ^ T.OR or tree.op ^ T.EQ or tree.op ^ T.NEQ or tree.op ^ T.LE or tree.op ^ T.LT or tree.op ^ T.GE or tree.op ^ T.GT:
             return True
         return False
-    elif tree ^ Literal and tree.value ^ {T.TRUE, T.FALSE}:
+    elif tree ^ Literal and (tree.value ^ T.TRUE or tree ^ T.FALSE):
         return True
     elif tree ^ List:
         for el in tree.elements:
             if not is_boolean(el):
                 return False
         return True
-    elif tree ^ {T.IME, Call}:
+    elif tree ^ T.IME or tree ^ Call:
             return True
     elif tree ^ ConstructorCall and tree.type ^ T.BOOL:
         return True
@@ -1996,6 +1996,21 @@ let var := "nešto";
 if (var) {
    var := 1;
 }
-
-
+var := 121;
+let accum := 0;
+let nonlist := 1;
+for var {
+   accum := accum + 2;
+}
 """
+
+program2 = """
+let accum1 := 42;
+accum1 := [1,2] + ["a", "b"];
+"""
+
+program3 = """
+let accum1 := 42;
+accum1 := accum1 + 1;
+"""
+P(program3)
