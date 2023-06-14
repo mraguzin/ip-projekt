@@ -594,28 +594,6 @@ def units_check(*args):
             return False
     return True
 
-
-   
-
-
-    unit = None
-    if args[0] ^ Number and args[0].unit:
-        unit = args[0].unit
-    elif is_list(args[0]):
-        return False
-    for arg in args[1:]:
-        if arg ^ Number and arg.unit:
-            if unit:
-                return False
-            unit = arg.unit
-        elif unit:
-            if arg ^ Number and arg.unit:
-                return False
-        if is_list(args[0]):
-            return False
-            
-    return True
-
 def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *rezultira* u listi; uočimo da to ne moraju direktno biti liste, već i drugi
     # izrazi za koje statički znamo da daju listu (tj. da im je vrijednost lista). Kada bismo imali neke operatore koji mogu "suziti" rezultat npr. iz
     # liste operanada dati nekakav "skalar" (OTOH operatori usporedbe < i > nad listama brojeva), onda bi ovo bila složenija funkcija.
@@ -887,11 +865,7 @@ class P(Parser):
         while op := p >= {T.EQ, T.NEQ}:
             tree = Binary(op, tree, p.expr6())
             if tree.left ^ Assignment or tree.right ^ Assignment:
-                raise GreškaPridruživanja
-            #if is_list(tree.left) or is_list(tree.right):
-                #if not listcheck_bool(tree.left, tree.right):
-                    #raise SemantičkaGreška('Lijeva i desna lista nisu kompatibilne za test (ne)jednakosti')
-        
+                raise GreškaPridruživanja       
             
         return tree
     
@@ -956,7 +930,7 @@ class P(Parser):
             if terms[-1][1] ^ List:
                 if tlen != terms[-1][1].get_list_length():
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-        if not listcheck_numberunits(*[el[1].vrijednost() for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
+        if not listcheck_numberunits(*[el[1] for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
             # već provjerio sve što se tiče dopuštenih operacija, što uključuje i korektnost jedinica
             raise SemantičkaGreška('Nekompatibilne liste za + i -')
         return Nary(terms)
@@ -979,9 +953,9 @@ class P(Parser):
                 # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine ("broadcasting")
         if len(facts) == 1:
             return facts[0][1]
-        if not listcheck_number(*[el[1].vrijednost() for el in facts]):
+        if not listcheck_number(*[el[1] for el in facts]):
             raise SemantičkaGreška('Nekompatibilne liste brojeva za * i /')
-        if not units_check(*[el[1].vrijednost() for el in facts]):
+        if not units_check(*[el[1] for el in facts]):
             raise SemantičkaGreška('Množenje/dijeljenje dimenzionalnom veličinom je dozvoljeno samo s (bezdimenzionalnim) skalarom')
         return Nary(facts)
     
@@ -1982,7 +1956,8 @@ class List(DotList):
     #     if len(self.elements) != len(other.elements):
     #         return False
     #     for el1,el2 in zip(self.elements, other.elements):
-
+    def __iter__(self):
+        return self.elements.__iter__()
 
     def vrijednost(self):
         return self.elements
