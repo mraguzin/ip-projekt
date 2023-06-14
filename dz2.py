@@ -222,7 +222,7 @@ class T(TipoviTokena):
             file = open(fname, 'w')
             things = []
             for arg in args[1:]:
-                things.append(arg)
+                things.append(arg.vrijednost())
             if len(things) == 1:
                 file.write(jsonpickle.encode(things[0]))
             else:
@@ -301,7 +301,8 @@ def miko(lex):
             except KeyError:
                 raise lex.greška()
 
-class GreškaPridruživanja(SintaksnaGreška): """ Zanemariti ovo; gramatika se promijenila i ovo više nema nikakvog značenja! """
+class GreškaPridruživanja(SintaksnaGreška): """ Ilegalno """
+# pridruživanje nije izraz
 
 #imamo tipove: string, number, bool, fungus, tree, edibility, dna, datetime
 #AUTO, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME
@@ -360,6 +361,8 @@ def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li 
     return False
 
 def is_function_defined(symbol):
+    if symbol.sadržaj == 'print': # hack
+        return True
     if symbol in rt.funtab:
         return True
     return False
@@ -610,6 +613,11 @@ class P(Parser):
         # i ne smiju se opetovano deklarirati u istoj funkciji; pri izlasku iz funkcije, parser zaboravlja sve njene lokalne varijable. Zato koristimo stog
         rt.funtab = Memorija() # tu držimo samo (globalne) funkcije
         rt.symtab.append(Memorija()) # globalni scope
+        # dodajemo builtin print funkciju s očitim ponašanjem
+        #fakeprint = T.IME('print')
+        #rt.funtab['print'] = Function('print', [], printfun)
+        rt.funtab['print'] = printfun
+
         functions = []
         statements = []
 
@@ -749,21 +757,32 @@ class P(Parser):
         if fun := p >= T.IME:
             if not is_function_defined(fun): # koristimo ovu zasebnu funkciju za funkcijske simbole jer oni moraju biti samo u globalnom scopeu
                 raise SemantičkaGreška('Funkcija ' + fun.sadržaj + ' nije definirana')
-            #idx, symtab = get_symtab(fun)
-            #if not symtab[fun] ^ Function:
-                #raise p.greška('Očekivana funkcija za poziv')
-            #fun = symtab[fun]
+            if fun.sadržaj == 'print': #stvarno moramo ovako...
+                p >> T.OTV
+                args = []
+                if p >= T.ZATV:
+                    return Call(fun, args)
+                while True:
+                    val = p.expr()
+                    args.append(val)
+                    if p >= T.COMMA: pass
+                    else: break
+                p >> T.ZATV
+                return Call(fun, args)
+            
             fun = rt.funtab[fun]
         elif fun := p >= T.SETPARAM:
             p >> T.OTV
             args = {}
-            while p >= T.COMMA:
+            while True:
                 key = p >> T.IME
                 if key in args:
                     raise SemantičkaGreška('Već ste naveli vrijednost parametra ' + key.sadržaj)
                 p >> T.COLON
                 val = p.expr()
                 args[key] = val
+                if p >= T.COMMA: pass
+                else: break
             p >> T.ZATV
             return Call(fun, args)
         else: 
@@ -992,6 +1011,8 @@ class P(Parser):
                 p >> T.IME # pojedi, inače ne jer call() mora vidjeti ime!
                 return var
             # ovo mora biti poziv funkcije 'var'
+            if var.sadržaj == 'print': # (n|r)užan hack
+                return p.call()
             if var in rt.funtab:
                 return p.call()
             else:
@@ -1120,6 +1141,14 @@ class Povratak(NelokalnaKontrolaToka): pass
 class Nastavak(NelokalnaKontrolaToka): pass
 class Prekid(NelokalnaKontrolaToka): pass
 
+def printfun(*args):
+    for arg in args:
+        arg = arg.vrijednost()
+        if type(arg) == str or type(arg) == bool:
+            print(arg)
+        else:
+            print(arg.to_string())
+
 class Program(AST):
     statements: ...
     functions: ...
@@ -1201,10 +1230,16 @@ class Call(AST):
     function: ...
     arguments: ...
 
+    def izvrši(self):
+        self.vrijednost()
+
     def vrijednost(self):
         if self.function ^ T.SETPARAM or self.function ^ T.READ or self.function ^ T.WRITE: # builtins
             return self.function.izvrši(*self.arguments)
-        
+        elif self.function.sadržaj == 'print':
+            rt.funtab[self.function.sadržaj](*self.arguments)
+            return None
+                
         rt.okolina.append(Memorija())
         i = 0
         for param in rt.funtab[self.function].parameter_names:
