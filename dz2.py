@@ -191,7 +191,7 @@ class T(TipoviTokena):
         literal = 'setParam'
         def izvrši(self, *args):
             for key,val in args.items():
-                rt.params[key] = val
+                rt.params[key.sadržaj] = val.vrijednost()
             return None
             
     class READ(Token):
