@@ -267,8 +267,7 @@ def miko(lex):
             except KeyError:
                 raise lex.greška()
 
-class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanje nađe u izlazu; to ne možemo direktno predstaviti u LL(1) gramatici """
-# u ovom jeziku ne želimo da pridruživanje bude izraz
+class GreškaPridruživanja(SintaksnaGreška): """ Zanemariti ovo; gramatika se promijenila i ovo više nema nikakvog značenja! """
 
 #imamo tipove: string, number, bool, fungus, tree, edibility, dna, datetime
 #AUTO, STRING, NUMBER, BOOL, FUNGUS, TREE, EDIBILITY, DNA, DATETIME
@@ -280,7 +279,8 @@ class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanj
 # nodna -> STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DATETIME
 # decl -> LET IME | LET asgn
 # asgn -> IME ASGN expr
-# expr -> cross UPIT expr COLON expr | cross
+# expr -> expr0 ASGN expr | expr0
+# expr0 -> cross UPIT expr0 COLON expr | cross
 # cross -> cross CROSSING sel | sel
 # sel -> sel SELECTION | mut
 # mut -> MUTATION mut | expr2
@@ -291,13 +291,14 @@ class GreškaPridruživanja(SintaksnaGreška): """ Greška kada se pridruživanj
 # expr4 -> (term PLUS)+ term | (term MINUS)+ term | term
 # term -> (fact PUTA)+ fact | (fact DIV)+ fact | fact     #TODO: implicitno množenje
 # fact -> (bot DOT)+ bot | bot
-# bot -> IME (ASGN expr)? | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb | datespec | list
+# bot -> IME | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb |
+# | datespec | list
 # list -> LUGL args? DUGL
 # unit -> MILIGRAM | GRAM | KILOGRAM
 # cons -> type OTV args? ZATV | DNA LUGL params DUGL | DNA OTV IME ZATV  # konstruktori za builtin tipove
 # fun -> FUNCTION IME OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
 # params -> (IME COMMA)+ IME | IME
-# stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI |## asgn SEMI
+# stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI
 # stmt2 -> CONTINUE SEMI | BREAK SEMI | stmt
 # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
 # branch -> IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV LVIT stmt* DVIT ELSE LVIT stmt* DVIT  #izbjegavamo dangling else problem s obveznim {}
@@ -734,20 +735,33 @@ class P(Parser):
         p >> T.ZATV
         return Call(fun, args)
     
-# expr -> cross UPIT expr COLON expr | cross
+# expr -> expr0 ASGN expr | expr0
+# expr0 -> cross UPIT expr0 COLON expr | cross
 # cross -> cross CROSSING sel | sel
 # sel -> sel SELECTION | mut
 # mut -> MUTATION mut | expr2
 # expr2 -> expr2 OR expr3 | expr3
 
     def expr(p):
+        left = p.expr0()
+        if p >= T.ASGN:
+            # imamo pridruživanje, pa lijevo smiju biti samo: imena, dot-liste
+            if not left ^ {T.IME, DotList}:
+                raise SemantičkaGreška('Pridruživati možete samo varijabli ili nekom članu složenijeg objekta')
+            right = p.expr()
+            if right ^ Assignment:
+                raise SintaksnaGreška('Ulančavana pridruživanja nisu legalna') # ?
+            return Assignment(left, right)
+        return left
+
+    def expr0(p):
         left = p.cross()
         if p >= T.UPIT:
-            middle = p.expr()
+            middle = p.expr0()
             if not is_boolean(middle):
                 raise SemantičkaGreška('Prvi izraz ternarnog operatora mora biti upit (boolean)')
             p >> T.COLON
-            right = p.expr()
+            right = p.expr0()
             if left ^ Assignment or middle ^ Assignment or right ^ Assignment:
                 raise GreškaPridruživanja
             return Ternary(left, middle, right)
@@ -927,17 +941,14 @@ class P(Parser):
                     raise SemantičkaGreška('Samo imena svojstava smiju biti između točaka')
         return DotList.ili_samo(bots)
     
-    # bot -> IME (ASGN expr)? | BROJ unit? | STRING | TRUE | FALSE | MINUS bot | NOT bot | OTV expr ZATV | call | cons | edb | datespec | list
+
     # cons -> type OTV args? ZATV   # konstruktori za builtin tipove
     # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
     def bot(p):
-        if var := p >= T.IME:
+        if var := p > T.IME:
             if is_in_symtable(var):# inače je čisto pridruživanje varijable ili čisto pojavljivanje varijable (po mogućnosti unutar složenijeg izraza)
-                if p >= T.ASGN:
-                    return Assignment(var, p.expr())
-                else:
-                    return var
-            idx, symtab = get_symtab(var)
+                p >> T.IME # pojedi, inače ne jer call() mora vidjeti ime!
+                return var
             # ovo mora biti poziv funkcije 'var'
             if var in rt.funtab:
                 return p.call()
@@ -980,7 +991,7 @@ class P(Parser):
                 # validiraj da su imena samo 'A', 'T', 'C' ili 'G'
                 for base in bases:
                     if base.sadržaj not in {'A', 'T', 'C', 'G'}:
-                        raise SintaksnaGreška('Netočan format DNA: očekivani nukelotidi iz {A,T,C,G}')
+                        raise SintaksnaGreška('Netočan format DNA: očekivani nukleotidi iz {A,T,C,G}')
                 p >> T.DUGL
                 p >> T.ZATV
                 values = [base.sadržaj for base in bases]
@@ -988,14 +999,14 @@ class P(Parser):
             elif bases := p >> T.IME:
                 for base in bases.sadržaj:
                     if base not in {'A', 'T', 'C', 'G'}:
-                        raise SintaksnaGreška('Netočan format DNA: očekivani nukelotidi iz {A,T,C,G}')
+                        raise SintaksnaGreška('Netočan format DNA: očekivani nukleotidi iz {A,T,C,G}')
                 p >> T.ZATV
                 return DNA(bases)
         args = []
         if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
         p >> T.ZATV
-        type.validate_call(*args)
+        type.validate_call(*args) # pokušamo statički što više provjeriti
         return ConstructorCall(type, args)
     
     def datespec(p):
