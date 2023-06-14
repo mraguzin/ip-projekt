@@ -702,7 +702,7 @@ class P(Parser):
                 p >> T.SEMI
                 statements.append(el)
             else:
-                statements.appene(p.stmts(more))
+                statements.append(p.stmts(more))
 
         return Statements(statements)
         
@@ -1198,15 +1198,15 @@ class ForLoop(AST):
 
     def izvrši(self):
         idx, var = get_symtab(self.loop_variable)
-        if not var ^ Number:
+        if not rt.okolina[idx][self.loop_variable] ^ Number:
             raise SemantičkaGreška('Varijabla u for petlji mora biti numerička')
-        while self.loop_variable.vrijednost() != 0:
+        while self.loop_variable.vrijednost() != Number(0, None):
             try:
                 self.body_statements.izvrši()
             except Prekid:
                 break
             except Nastavak: pass
-            rt.okolina[idx][self.loop_variable] -= 1 # ovo je default petlja; mogli bismo dodati i još neke, ali čak i ovakva implementacija
+            rt.okolina[idx][self.loop_variable] -= Number(1, None) # ovo je default petlja; mogli bismo dodati i još neke, ali čak i ovakva implementacija
             # dozvoljava da korisnik mijenja varijablu i utječe na ponašanje petlje tijekom njena izvođenja
 
 class SimpleBranch(AST):
@@ -2002,10 +2002,6 @@ class DNA(AST):
         return tmp
 
 class List(DotList):
-    # def __eq__(self, other):
-    #     if len(self.elements) != len(other.elements):
-    #         return False
-    #     for el1,el2 in zip(self.elements, other.elements):
     def __iter__(self):
         return self.elements.__iter__()
 
@@ -2107,6 +2103,10 @@ if (2+3 = 5) {
 """
 
 program9 = """
+let i := 10;
+for i {
+ print(i);
+}
 
 """
 
@@ -2118,3 +2118,4 @@ P(program5)
 P(program7)
 p8 = P(program8)
 p8.izvrši()
+P(program9).izvrši()
