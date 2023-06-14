@@ -476,13 +476,20 @@ def listcheck(checker, *args): # rekurzivna provjera kompatibilnosti listi
             return True
         
         # svi su liste
-        len = None
-        for list in args:
-            if len is None:
-                len = list.get_list_length()
+        klen = None
+        for alist in args:
+            if klen is None:
+                if type(alist) == list:
+                    klen = len(alist)
+                else:
+                    klen = alist.get_list_length()
             else:
-                if len != list.get_list_length():
-                    return False
+                if type(alist) == list:
+                    if klen != len(alist):
+                        return False
+                else:
+                    if klen != alist.get_list_length():
+                        return False
         
         for els in zip(*args):
             if not listcheck(checker, *els):
@@ -523,13 +530,20 @@ def listcheck_numberunits(*args):
             return True
         
         # svi su liste
-        len = None
-        for list in args:
-            if len is None:
-                len = list.get_list_length()
+        klen = None
+        for alist in args:
+            if klen is None:
+                if type(alist) == list:
+                    klen = len(alist)
+                else:
+                    klen = alist.get_list_length()
             else:
-                if len != list.get_list_length():
-                    return False
+                if type(alist) == list:
+                    if klen != len(alist):
+                        return False
+                else:
+                    if klen != alist.get_list_length():
+                        return False
         
         for els in zip(*args):
             if not listcheck_numberunits(*els):
@@ -559,13 +573,20 @@ def units_check(*args):
             unit = arg.unit
         
         # svi su liste
-    len = None
-    for list in args:
-        if len is None:
-            len = list.get_list_length()
-        else:
-            if len != list.get_list_length():
-                return False
+    klen = None
+    for alist in args:
+            if klen is None:
+                if type(alist) == list:
+                    klen = len(alist)
+                else:
+                    klen = alist.get_list_length()
+            else:
+                if type(alist) == list:
+                    if klen != len(alist):
+                        return False
+                else:
+                    if klen != alist.get_list_length():
+                        return False
         
     for els in zip(*args):
         if not units_check(*els):
@@ -597,6 +618,8 @@ def units_check(*args):
 def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *rezultira* u listi; uočimo da to ne moraju direktno biti liste, već i drugi
     # izrazi za koje statički znamo da daju listu (tj. da im je vrijednost lista). Kada bismo imali neke operatore koji mogu "suziti" rezultat npr. iz
     # liste operanada dati nekakav "skalar" (OTOH operatori usporedbe < i > nad listama brojeva), onda bi ovo bila složenija funkcija.
+    if type(node) == list:
+        return len(node)
     if node ^ Binary and (node.op ^ T.EQ or node.op ^ T.NEQ): # ipak imamo ovaj važan poseban slučaj
         return False 
     return node.get_list_length() is not None
@@ -932,7 +955,7 @@ class P(Parser):
             if terms[-1][1] ^ List:
                 if tlen != terms[-1][1].get_list_length():
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-        if not listcheck_numberunits(*[el[1] for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
+        if not listcheck_numberunits(*[el[1].vrijednost() for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
             # već provjerio sve što se tiče dopuštenih operacija, što uključuje i korektnost jedinica
             raise SemantičkaGreška('Nekompatibilne liste za + i -')
         return Nary(terms)
@@ -955,9 +978,9 @@ class P(Parser):
                 # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine ("broadcasting")
         if len(facts) == 1:
             return facts[0][1]
-        if not listcheck_number(*[el[1] for el in facts]):
+        if not listcheck_number(*[el[1].vrijednost() for el in facts]):
             raise SemantičkaGreška('Nekompatibilne liste brojeva za * i /')
-        if not units_check(*[el[1] for el in facts]):
+        if not units_check(*[el[1].vrijednost() for el in facts]):
             raise SemantičkaGreška('Množenje/dijeljenje dimenzionalnom veličinom je dozvoljeno samo s (bezdimenzionalnim) skalarom')
         return Nary(facts)
     
@@ -1731,7 +1754,7 @@ class ConstructorCall(AST):
                 day = self.arguments[0].vrijednost()
                 month = self.arguments[0].vrijednost()
                 year = self.arguments[0].vrijednost()
-                for el in (day, month, year):
+                for el in [day, month, year]:
                     try:
                         if type(el) == str:
                             el = int(el)
@@ -1990,6 +2013,7 @@ class Declaration(AST):
         rt.okolina[-1][self.variable] = None
 
 
+
 program1 = """
 let var := "nešto";
 if (var) {
@@ -2012,5 +2036,11 @@ program3 = """
 let accum1 := 42;
 accum1 := accum1 + 1;
 """
-P(program3)
-P(program2)
+program4 = """
+let accum1 := 42;
+accum1 := [2,1] + [3,4];
+"""
+
+#P(program3)
+#P(program2)
+P(program4)

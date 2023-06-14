@@ -477,12 +477,19 @@ def listcheck(checker, *args): # rekurzivna provjera kompatibilnosti listi
         
         # svi su liste
         klen = None
-        for list in args:
+        for alist in args:
             if klen is None:
-                klen = list.get_list_length()
+                if type(alist) == list:
+                    klen = len(alist)
+                else:
+                    klen = alist.get_list_length()
             else:
-                if klen != list.get_list_length():
-                    return False
+                if type(alist) == list:
+                    if klen != len(alist):
+                        return False
+                else:
+                    if klen != alist.get_list_length():
+                        return False
         
         for els in zip(*args):
             if not listcheck(checker, *els):
@@ -524,12 +531,19 @@ def listcheck_numberunits(*args):
         
         # svi su liste
         klen = None
-        for list in args:
+        for alist in args:
             if klen is None:
-                klen = list.get_list_length()
+                if type(alist) == list:
+                    klen = len(alist)
+                else:
+                    klen = alist.get_list_length()
             else:
-                if klen != list.get_list_length():
-                    return False
+                if type(alist) == list:
+                    if klen != len(alist):
+                        return False
+                else:
+                    if klen != alist.get_list_length():
+                        return False
         
         for els in zip(*args):
             if not listcheck_numberunits(*els):
@@ -560,12 +574,19 @@ def units_check(*args):
         
         # svi su liste
     klen = None
-    for list in args:
-        if klen is None:
-            klen = list.get_list_length()
-        else:
-            if klen != list.get_list_length():
-                return False
+    for alist in args:
+            if klen is None:
+                if type(alist) == list:
+                    klen = len(alist)
+                else:
+                    klen = alist.get_list_length()
+            else:
+                if type(alist) == list:
+                    if klen != len(alist):
+                        return False
+                else:
+                    if klen != alist.get_list_length():
+                        return False
         
     for els in zip(*args):
         if not units_check(*els):
@@ -597,6 +618,8 @@ def units_check(*args):
 def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *rezultira* u listi; uočimo da to ne moraju direktno biti liste, već i drugi
     # izrazi za koje statički znamo da daju listu (tj. da im je vrijednost lista). Kada bismo imali neke operatore koji mogu "suziti" rezultat npr. iz
     # liste operanada dati nekakav "skalar" (OTOH operatori usporedbe < i > nad listama brojeva), onda bi ovo bila složenija funkcija.
+    if type(node) == list:
+        return len(node)
     if node ^ Binary and (node.op ^ T.EQ or node.op ^ T.NEQ): # ipak imamo ovaj važan poseban slučaj
         return False 
     return node.get_list_length() is not None
@@ -932,7 +955,7 @@ class P(Parser):
             if terms[-1][1] ^ List:
                 if tlen != terms[-1][1].get_list_length():
                     raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-        if not listcheck_numberunits(*[el[1] for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
+        if not listcheck_numberunits(*[el[1].vrijednost() for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
             # već provjerio sve što se tiče dopuštenih operacija, što uključuje i korektnost jedinica
             raise SemantičkaGreška('Nekompatibilne liste za + i -')
         return Nary(terms)
@@ -955,9 +978,9 @@ class P(Parser):
                 # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine ("broadcasting")
         if len(facts) == 1:
             return facts[0][1]
-        if not listcheck_number(*[el[1] for el in facts]):
+        if not listcheck_number(*[el[1].vrijednost() for el in facts]):
             raise SemantičkaGreška('Nekompatibilne liste brojeva za * i /')
-        if not units_check(*[el[1] for el in facts]):
+        if not units_check(*[el[1].vrijednost() for el in facts]):
             raise SemantičkaGreška('Množenje/dijeljenje dimenzionalnom veličinom je dozvoljeno samo s (bezdimenzionalnim) skalarom')
         return Nary(facts)
     
