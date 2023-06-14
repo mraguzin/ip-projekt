@@ -37,6 +37,8 @@ lako spremiti cijeli niz objekata.
 """
 
 from vepar import *
+import copy
+import datetime
 
 class T(TipoviTokena):
     EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA, DOT = '=<>+-*/(){}[];:?,.'
@@ -56,7 +58,7 @@ class T(TipoviTokena):
     FUNCTION = 'function'
     FOR, IF = 'for', 'if'
     TRUE, FALSE = 'true', 'false'
-    SETPARAM = 'setParam'  #ovo je builtin funkcija koja služi interaktivnoj izmjeni/prilagodbi globalnihparametara evolucijskih operatora
+    SETPARAM = 'setParam'  #ovo je builtin funkcija koja služi interaktivnoj izmjeni/prilagodbi globalnih parametara evolucijskih operatora
     # kako bi se dobili željeni
     # populacijski rezultati kroz simulirane generacije gljiva. Sami parametri nisu hardkodirani u jeziku; predaju se kao param:val parovi
     #  i interpreter je dužan nositi se s njima kako spada. Npr. setParam("param1:")
@@ -96,7 +98,7 @@ class T(TipoviTokena):
     class TREE(Token):
         literal = 'Tree'
         def validate_call(self, *args):
-            if len(args) != 0:
+            if len(args) > 1:
                 raise SemantičkaGreška('Konstruktor Tree-a je bez parametara')
             return True
     class EDIBILITY(Token):
@@ -117,6 +119,14 @@ class T(TipoviTokena):
     class DATETIME(Token):
         literal = 'Datetime'
         def validate_call(self, *args):
+            if len(args) >= 3: # želimo dopustiti da se datum konstruira iz komponenti, koje radi udobnosti mogu biti što god se može interpretirati kao broj
+                if not is_arithmetic(args[0]) or not is_arithmetic(args[1]) or not is_arithmetic(args[2]):
+                    raise SemantičkaGreška('Datum se konstruira od bar 3 komponente')
+                if len(args) >= 5:
+                    if not is_arithmetic(args[3]) or not is_arithmetic(args[4]):
+                        raise SemantičkaGreška('Vrijeme zahtijeva dva broja')
+                return True
+            
             if len(args) != 1 or not is_datetime(args[0]) or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor Datetime-a zahtijeva literal datuma ili datuma+vremena')
             return True
@@ -174,12 +184,7 @@ class T(TipoviTokena):
         def get_list_length(self):
             return None
         
-        def validiraj(self):
-            dijelovi = self.vrijednost()
-            if dijelovi[0] < 0 or dijelovi[0] > 31 or dijelovi[1] > 12 or dijelovi[1] < 1 or dijelovi[2] < 1000 or dijelovi[2] > 9999:
-                raise SemantičkaGreška('Nemoguć datum')
-            
-            return True
+        
             
     class READ(Token):
         literal = 'read'
@@ -215,7 +220,7 @@ def miko(lex):
             lex * {str.isdigit, '.'}
             if lex.sadržaj.count('.') == 3: # poseban slučaj za datume, oni se mogu odmah lexati kao takvi: 26.3.2023. Ali jasno treba dodatan check u parseru...
                 if len(lex.sadržaj) < 6:
-                    raise lex.greška('Ilegalan format datuma') #TODO: detaljni error reporting za datume u fazi parsiranja
+                    raise lex.greška('Ilegalan format datuma')
                 else:
                     yield lex.token(T.DATUM)
             else:
@@ -941,7 +946,7 @@ class P(Parser):
             return p.call()
         elif num := p >= T.BROJ:
             unit = p >= {T.MILIGRAM, T.GRAM, T.KILOGRAM}
-            return Number(num, unit)
+            return Number(num.vrijednost(), unit)
         elif literal := p >= {T.STRING, T.TRUE, T.FALSE}:
             return Literal(literal)
         elif op := p >= {T.MINUS, T.NOT}:
@@ -994,7 +999,8 @@ class P(Parser):
     
     def datespec(p):
         date = p >> T.DATUM
-        date.validiraj() # je li ovo ok datum, čisto sintaktički?
+        #date.validiraj() # je li ovo ok datum, čisto sintaktički?
+        date = date.vrijednost()
         minutes = 0
         seconds = 0
         if hour := p >= T.BROJ:
@@ -1002,9 +1008,13 @@ class P(Parser):
             minutes = p >> T.BROJ
             if p >= T.COLON:
                 seconds = p >> T.BROJ
-            return DateTime(date, hour, minutes, seconds)
+            tmp = DateTime(date, int(hour.sadržaj), int(minutes.sadržaj), int(seconds.sadržaj))
+            tmp.validate()
+            return tmp
         else:
-            return Date(date)
+            tmp = Date(date)
+            tmp.validate()
+            return tmp
 
     def list(p):
         p >> T.LUGL
@@ -1190,16 +1200,6 @@ class Binary(AST):
             if type(left) != bool or type(right) != bool:
                 raise SemantičkaGreška('Logički operatori su legalni samo nad bool izrazima')
             return left or right
-        elif self.op ^ T.DIV:
-            left = self.left.vrijednost()
-            right = self.right.vrijednost()
-            if type(left) == type(right) == float:
-                return left / right
-            if type(left) == type(right) == list:
-                if len(left) != len(right):
-                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                return [op1 / op2 for op1,op2 in zip(left, right)]
-            raise SemantičkaGreška('Nekompatibilni izrazi')
         elif self.op ^ T.EQ:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
@@ -1218,7 +1218,7 @@ class Binary(AST):
             left = self.left.vrijednost()
             right = self.right.vrijednost()
             if type(left) == type(right) and type(left) != list:
-                return left != right #TODO: pripazi da naši custom objekti u Pythonu rade pravilno s operatorom == i !=
+                return left != right
             elif type(left) == type(right): # riječ je o listi
                 if len(left) != len(right):
                     return True
@@ -1252,38 +1252,6 @@ class Binary(AST):
             if type(left) == type(right) == float:
                 return left < right
             raise SemantičkaGreška('Samo se brojevi mogu uspoređivati sa <, >, <=, >=')
-        elif self.op ^ T.MINUS:
-            left = self.left.vrijednost()
-            right = self.right.vrijednost()
-            if type(left) == type(right) == float:
-                return left - right
-            raise SemantičkaGreška('Samo se brojevi mogu oduzimati')
-        elif self.op ^ T.PLUS:
-            left = self.left.vrijednost()
-            right = self.right.vrijednost()
-            if type(left) == type(right) == float:
-                return left + right
-            elif type(left) == type(right) == str:
-                return left + right
-            elif type(left) == type(right) == list:
-                if len(left) != len(right):
-                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                return [op1 + op2 for op1,op2 in zip(left, right)]
-            raise SemantičkaGreška('Samo se brojevi mogu zbrajati, a stringovi konkatenirati s + (moguće i s listama istih)')
-        elif self.op ^ T.MUL:
-            left = self.left.vrijednost()
-            right = self.right.vrijednost()
-            if type(left) == type(right) == float:
-                return left + right
-            elif type(left) == type(right) == str:
-                return left + right
-            elif type(left) == type(right) == list:
-                if len(left) != len(right):
-                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                return [op1 + op2 for op1,op2 in zip(left, right)]
-            raise SemantičkaGreška('Samo se brojevi mogu zbrajati, a stringovi konkatenirati s + (moguće i s listama istih)')
-        
-
                     
 
     def get_list_length(self):
@@ -1299,7 +1267,7 @@ def eq_recursive(op1, op2):
             return False
         res = True
         for n1,n2 in zip(left, right):
-            res = res and eq_recursive(op1, op2)
+            res = res and eq_recursive(n1, n2)
         return res
     return False
 
@@ -1307,17 +1275,175 @@ class Unary(AST):
     op: ...
     child: ...
 
+    def vrijednost(self):
+        if self.op ^ T.MUTATION: pass #TODO
+        elif self.op ^ T.SELECTION: pass #TODO
+        elif self.op ^ T.MINUS:
+            tmp = self.child.vrijednost()
+            if tmp ^ Number:
+                tmp.value = -tmp.value
+                return tmp
+            if type(tmp) == list:
+                for el in tmp:
+                    new = Unary(self.op, el)
+                    el = new.vrijednost() # rekurzija, mijenja listu
+                return tmp
+            raise SemantičkaGreška('Negirati se mogu samo numeričke liste ili brojevi')
+        elif self.op ^ T.NOT:
+            tmp = self.child.vrijednost()
+            if type(tmp) == bool:
+                return not tmp
+            if type(tmp) == list:
+                for el in tmp:
+                    new = Unary(self.op, el)
+                    el = new.vrijednost()
+                return tmp
+
+
     def get_list_length(self):
         return self.child.get_list_length()
+
+def unit_conv(val, src, dest):
+    if not dest:
+        return val
+    if type(src) == type(dest):
+        return val
+    if src ^ T.MILIGRAM and dest ^ T.GRAM:
+        return val / 1000
+    if src ^ T.GRAM and dest ^ T.MILIGRAM:
+        return val * 1000
+    if src ^ T.KILOGRAM and dest ^ T.GRAM:
+        return val * 1000
+    if src ^ T.GRAM and dest ^ T.KILOGRAM:
+        return val / 1000
+    if src ^ T.KILOGRAM and dest ^ T.MILIGRAM:
+        return val * 1e6
+    if src ^ T.MILIGRAM and dest ^ T.KILOGRAM:
+        return val / 1e6
 
 class Nary(AST):
     pairs: ... # (op,expr) pairs
 
     def get_list_length(self):
         return self.pairs[0][1].get_list_length()
+    
+    def vrijednost(self):
+        accum = copy.deepcopy(self.pairs[0][1].vrijednost())
+        unit = None if not accum ^ Number else accum.unit
+        for op,val in self.pairs[1:]:
+            if op ^ T.MINUS:
+                tmp = val.vrijednost()
+                if type(tmp) == list ^ type(accum) == list:
+                    raise SemantičkaGreška('Lista se može oduzimati samo s listom')
+                if type(accum) == list:
+                    if len(tmp) != len(accum):
+                        raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                    for el1,el2 in zip(accum, tmp):
+                        new = Nary([[op,el1], [op,el2]])
+                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                elif type(accum) == type(tmp) == Number:
+                    if unit and not tmp.unit or not unit and tmp.unit:
+                        raise SemantičkaGreška('Nije navedena jedinica pri oduzimanju')
+                    accum.value -= unit_conv(tmp.value, tmp.unit, unit)
+                else:
+                    raise SemantičkaGreška('Nekompatibilni operandi oduzimanja')
+        
+            elif op ^ T.PLUS:
+                tmp = val.vrijednost()
+                if type(tmp) == list ^ type(accum) == list:
+                    raise SemantičkaGreška('Lista se može zbrajati samo s listom')
+                if type(accum) == list:
+                    if len(tmp) != len(accum):
+                        raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                    for el1,el2 in zip(accum, tmp):
+                        new = Nary([[op,el1], [op,el2]])
+                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                elif type(accum) == type(tmp) == Number or type(accum) == type(tmp) == str:
+                    if unit and not tmp.unit or not unit and tmp.unit:
+                        raise SemantičkaGreška('Nije navedena jedinica pri zbrajanju')
+                    accum.value += unit_conv(tmp.value, tmp.unit, unit)
+                else:
+                    raise SemantičkaGreška('Nekompatibilni operandi zbrajanja')
+
+            elif op ^ T.MUL:
+                tmp = val.vrijednost()
+                if type(tmp) == list ^ type(accum) == list:
+                    raise SemantičkaGreška('Lista se može množiti samo s listom')
+                if type(accum) == list:
+                    if len(tmp) != len(accum):
+                        raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                    for el1,el2 in zip(accum, tmp):
+                        new = Nary([[op,el1], [op,el2]])
+                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                elif type(accum) == type(tmp) == Number:
+                    if unit and tmp.unit:
+                        raise SemantičkaGreška('Nije moguće množiti dvije dimenzionalne veličine')
+                    elif tmp.unit:
+                        accum.unit = unit = tmp.unit
+                    accum.value *= unit_conv(tmp.value, tmp.unit, unit)
+                else:
+                    raise SemantičkaGreška('Nekompatibilni operandi množenja')
+        
+            elif op ^ T.DIV:
+                tmp = val.vrijednost()
+                if type(tmp) == list ^ type(accum) == list:
+                    raise SemantičkaGreška('Lista se može dijeliti samo s listom')
+                if type(accum) == list:
+                    if len(tmp) != len(accum):
+                        raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
+                    for el1,el2 in zip(accum, tmp):
+                        new = Nary([[op,el1], [op,el2]])
+                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                elif type(accum) == type(tmp) == Number:
+                    if unit and tmp.unit:
+                        raise SemantičkaGreška('Nije moguće dijeliti dvije dimenzionalne veličine')
+                    elif tmp.unit:
+                        accum.unit = unit = tmp.unit
+                    accum.value /= unit_conv(tmp.value, tmp.unit, unit)
+                else:
+                    raise SemantičkaGreška('Nekompatibilni operandi množenja')
+                
+        return accum
 
 class DotList(AST):
     elements: ...
+#SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
+    def vrijednost(self):
+        obj = self.elements[0].vrijednost() # moramo pristupati kroz neki objekt: Fungus ili Tree
+        if type(obj) == Fungus:
+            if self.elements[1].sadržaj == 'name':
+                return DotList.ili_samo([obj.name, *self.elements[2:]])
+            elif self.elements[1].sadržaj == 'latin':
+                return DotList.ili_samo([obj.latin, *self.elements[2:]])
+            elif self.elements[1].sadržaj == 'dna':
+                return DotList.ili_samo([obj.dna, *self.elements[2:]])
+            elif self.elements[1].sadržaj == 'taxonomy':
+                return DotList.ili_samo([obj.taxonomy, *self.elements[2:]])
+            elif self.elements[1].sadržaj == 'edibility':
+                return DotList.ili_samo([obj.edibility, *self.elements[2:]])
+            elif self.elements[1].sadržaj == 'timestamp':
+                return DotList.ili_samo([obj.timestamp, *self.elements[2:]])
+            else:
+                raise SemantičkaGreška('Nepoznat atribut Fungus objekta: ' + self.elements[1].sadržaj)
+        elif type(obj) == Tree:
+            if self.elements[1].sadržaj == 'spec':
+                return obj.spec
+            elif self.elements[1].sadržaj == 'gen':
+                return obj.gen
+            elif self.elements[1].sadržaj == 'fam':
+                return obj.fam
+            elif self.elements[1].sadržaj == 'ord':
+                return obj.ord
+            elif self.elements[1].sadržaj == 'class':
+                return obj.klasa
+            elif self.elements[1].sadržaj == 'phyl':
+                return obj.phyl
+            elif self.elements[1].sadržaj == 'king':
+                return obj.king
+            else:
+                raise SemantičkaGreška('Nepostojeći element taksonomije u specifikaciji')    
+        else:
+            raise SemantičkaGreška('Sa točkom se može pristupati samo svojstvima Fungus i Tree objekata')
 
     def get_list_length(self):
         return None
@@ -1326,15 +1452,37 @@ class Assignment(AST):
     variable: ...
     expression: ...
 
+    def izvrši(self):
+        # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
+        tmp = self.expression.vrijednost()
+        if type(tmp) == Fungus or type(tmp) == DNA:
+            rt.okolina[-1][self.variable] = self.expression.vrijednost()
+        else:
+            rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
+
 class Number(AST):
     value: ...
     unit: ...
+
+    def vrijednost(self):
+        return self # ovo treba biti dno što se tiče brojeva; value je uvijek konkretan float ovdje
 
     def get_list_length(self):
         return None
 
 class Literal(AST):
     value: ...
+
+    def vrijednost(self):
+        if self.value ^ T.STRING:
+            return self.value.vrijednost()
+        elif type(self.value) == str:
+            return self.value
+        elif self.value ^ T.TRUE:
+            return True
+        elif self.value ^ T.FALSE:
+            return False
+        raise SemantičkaGreška('Nemoguć literal')
 
     def get_list_length(self):
         return None
@@ -1343,11 +1491,161 @@ class ConstructorCall(AST):
     type: ...
     arguments: ...
 
+    def vrijednost(self): #TODO: treba popraviti ovdje što vraćam
+        true = Literal(T.TRUE)
+        false = Literal(T.FALSE)
+                        
+        if self.type ^ T.BOOL:
+            if len(self.arguments) != 1:
+                raise SemantičkaGreška('Konstruktor bool-a prima jedan argument')
+            arg = self.arguments[0].vrijednost()
+            if type(arg) == bool:
+                if arg:
+                    return true
+                else:
+                    return false
+            elif type(arg) == Number: # konverzija Number->Bool: False akko 0
+                if arg.value == 0:
+                    return false
+                else:
+                    return true
+            elif type(arg) == str: # konverzija String->Bool: False akko duljine 0
+                if len(arg) == 0:
+                    return false
+                else:
+                    return true
+            elif type(arg) == Edibility:
+                if arg.kind == T.EDIBLE:
+                    return true
+                else:
+                    return false
+            else:
+                raise SemantičkaGreška('Nepodržana konverzija iz tipa ' + str(type(arg)) + ' u tip ' + str(self.type))
+            
+        elif self.type ^ T.NUMBER:
+            if len(self.arguments) != 1:
+                raise SemantičkaGreška('Konstruktor broja prima jedan argument')
+            arg = self.arguments[0].vrijednost()
+            if type(arg) == bool: # konverzija Bool->Number: 1 ako True, inače 0
+                if arg:
+                    return Number(1, None)
+                else:
+                    return Number(0, None)
+            elif type(arg) == Number:
+                return arg
+            elif type(arg) == str: # konverzija String->Number: koristimo Pythonovu semantiku
+                tmp = float(arg)
+                return Number(tmp, None)
+            else:
+                raise SemantičkaGreška('Nepodržana konverzija iz tipa ' + str(type(arg)) + ' u tip ' + str(self.type))
+            
+        elif self.type ^ T.STRINGTYPE:
+            if len(self.arguments) != 1:
+                raise SemantičkaGreška('Konstruktor stringa prima jedan argument')
+            arg = self.arguments[0].vrijednost()
+            if type(arg) == bool: # konverzija Bool->String: daje 'True' za istinu, a inače prazan string, kako bi bilo konzistentno s obrnutom konverzijom
+                if arg:
+                    return Literal('True')
+                else:
+                    return Literal('')
+            elif type(arg) == Number: # konverzija Number->String: kao Python
+                tmp = str(arg.value)
+                if arg.unit:
+                    tmp += ' ' + arg.unit.sadržaj
+                return Literal(tmp)
+            elif type(arg) == str:
+                return Literal(arg)
+            else:
+                return arg.to_string() #TODO: ovo mora biti u svakom objektu i daje JSON dump!
+            
+        elif self.type ^ T.DATETIME:
+            if len(self.arguments) >= 3:
+                day = self.arguments[0].vrijednost()
+                month = self.arguments[0].vrijednost()
+                year = self.arguments[0].vrijednost()
+                for el in (day, month, year):
+                    try:
+                        if type(el) == str:
+                            el = int(el)
+                        elif type(el) == Number:
+                            el = int(el.value)
+                        else:
+                            raise SemantičkaGreška('Nepodržan tip za dan/mjesec/godinu')
+                    except: raise SemantičkaGreška('Nemoguće konstruirati datum iz danih argumenata')
+                if len(self.arguments) > 3:
+                    minutes = 0
+                    seconds = 0
+                    for el in (comp.vrijednost() for comp in self.arguments[3:]):
+                        try:
+                            if type(el) == str:
+                                el = int(el)
+                            elif type(el) == Number:
+                                el = int(el.value)
+                            else:
+                                raise SemantičkaGreška('Nepodržan tip za vrijeme')
+                        except: raise SemantičkaGreška('Nemoguće konstruirati vrijeme iz danih argumenata')
+                    hours = el[0]
+                    if len(el) > 1:
+                        minutes = el[1]
+                    if len(el) > 2:
+                        seconds = el[2]
+                    if len(el) > 3:
+                        raise SemantičkaGreška('Konstrukcija vremena uzima najviše tri argumenta: sati, minute i sekunde')
+                    return DateTime([day, month, year], hours, minutes, seconds)
+                else:
+                    return Date([day, month, year])
+            else:
+                arg = self.arguments[0].vrijednost()
+                if type(arg) != Date or type(arg) != DateTime:
+                    raise SemantičkaGreška('Datum/vrijeme se može konstruirati samo iz literala datuma/vremena')
+                return arg                    
+            
+        elif self.type ^ T.FUNGUS: 
+            # nema konvertirajućeg konstruktora
+            # imamo bar 4 argumenta: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
+            args = (arg.vrijednost() for arg in self.arguments)
+            date = None
+            if type(args[0]) != str:
+                raise SemantičkaGreška('Prvi argument konstruktora za Fungus mora biti ime')
+            if type(args[1]) != str:
+                raise SemantičkaGreška('Drugi argument konstruktora za Fungus mora biti latinsko ime')
+            if type(args[2]) != DNA:
+                raise SemantičkaGreška('Treći argument konstruktora za Fungus mora biti DNA')
+            if type(args[3]) != Tree:
+                raise SemantičkaGreška('Četvrti argument konstruktora za Fungus mora biti taksonomija')
+            if len(args) == 5: # prihvaćamo i eksplicitan vrijeme unošenja uzorka
+                if type(args[4]) != Date and type(args[4]) != DateTime:
+                    raise SemantičkaGreška('Peti (opcionalni) argument konstruktora za Fungus mora biti datum/vrijeme')
+                date = args[4]
+            else: # ako nema vremena, uzima se trenutno
+                now = datetime.datetime.now()
+                date = DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second)
+            return Fungus(args[0], args[1], args[2], args[3], date)
+        
+        elif self.type ^ T.TREE:
+            return Tree() # taksonomija se samo "defaultno" konstruira tj. dobivamo ne baš korisan objekt u kojem se onda moraju postavljati komponente
+        # koristeći . operator
+        elif self.type ^ T.EDIBILITY:
+            return Edibility(self.arguments[0])
+        else:
+            raise SemantičkaGreška('Nemoguća situacija?!')
+
+
     def get_list_length(self):
         return None
 
 class Date(AST):
     date: ... #(day,month,year) triple
+
+    def vrijednost(self):
+        return self
+    
+    def validiraj(self):
+            dijelovi = self.date
+            if dijelovi[0] < 0 or dijelovi[0] > 31 or dijelovi[1] > 12 or dijelovi[1] < 1 or dijelovi[2] < 1000 or dijelovi[2] > 9999:
+                raise SemantičkaGreška('Nemoguć datum')
+            
+            return True
 
     def get_list_length(self):
         return None
@@ -1357,18 +1655,37 @@ class DateTime(Date):
     minutes: ...
     seconds: ...
 
+    def validiraj(self):
+        super().validiraj()
+        if self.hours < 0 or self.hours >= 24:
+            raise SemantičkaGreška('Sati moraju biti iz [0,23>')
+        if self.minutes < 0 or self.minutes >= 60:
+            raise SemantičkaGreška('Minute moraju biti iz [0, 60>')
+        if self.seconds < 0 or self.seconds >= 60:
+            raise SemantičkaGreška('Sekunde moraju biti iz [0, 60>')
+        return True
+
     def get_list_length(self):
         return None
     
 class DNA(AST):
     bases: ...
 
+    def vrijednost(self):
+        return self
+
 class List(DotList):
+    def vrijednost(self):
+        return self.elements
+    
     def get_list_length(self):
         return len(self.elements)
 
 class Edibility(AST):
     kind: ...
+
+    def vrijednost(self):
+        return self
 
     def get_list_length(self):
         return None
