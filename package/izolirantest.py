@@ -143,8 +143,9 @@ class T(TipoviTokena):
             return None
     class IME(Token):
         def vrijednost(self):
-            symtab = get_symtab(self)
+            idx, symtab = get_symtab(self)
             return symtab[self]
+            return val
         def get_list_length(self):
             return None
     class STRING(Token):
@@ -616,7 +617,7 @@ class P(Parser):
             if p > T.FUNCTION:
                 functions.append(p.fun())
             else:   
-                statements += p.stmts()
+                statements.append(p.stmts())
 
         if len(statements) == 0:
             raise p.greška('Program je prazan')
@@ -684,7 +685,7 @@ class P(Parser):
         # i to će se razriješiti u odgovarajućoj funkciji
         if not more and len(elements) == 0:
             raise p.greška('Očekivana jedna naredba')
-        return elements
+        return Statements(elements)
     
     def stmts2(p, more=True):
         statements = []
@@ -693,9 +694,9 @@ class P(Parser):
                 p >> T.SEMI
                 statements.append(el)
             else:
-                statements += p.stmts(more)
+                statements.appene(p.stmts(more))
 
-        return statements
+        return Statements(statements)
         
     
     # forloop -> FOR IME LVIT stmt2* DVIT | FOR IME stmt2
@@ -706,11 +707,15 @@ class P(Parser):
             raise p.greška('Varijabla ' + var.sadržaj + ' nije definirana')
         idx, symtab = get_symtab(var)
         if p >= T.LVIT:
+            rt.symtab.append(Memorija())
             stmts = p.stmts2()
             p >> T.DVIT
+            rt.symtab.pop()
             return ForLoop(var, stmts)
         else:
+            rt.symtab.append(Memorija())
             stmt = p.stmts2(False)
+            rt.symtab.pop()
             return ForLoop(var, stmt)
         
 # branch -> IF OTV expr ZATV LVIT stmt* DVIT | IF OTV expr ZATV LVIT stmt* DVIT ELSE LVIT stmt* DVIT
@@ -722,11 +727,15 @@ class P(Parser):
             raise SemantičkaGreška('Uvjeti za grananje moraju biti bool izrazi')
         p >> T.ZATV
         p >> T.LVIT
+        rt.symtab.append(Memorija()) # novi scope (skrivanje vanjskih varijabli je moguće)
         branch1 = p.stmts()
+        rt.symtab.pop()
         p >> T.DVIT
         if p >= T.ELSE:
             p >> T.LVIT
+            rt.symtab.append(Memorija())
             branch2 = p.stmts()
+            rt.symtab.pop()
             p >> T.DVIT
             return ComplexBranch(test, branch1, branch2)
         else:
@@ -801,7 +810,7 @@ class P(Parser):
             return Ternary(left, middle, right)
         else:
             return left
-        #TODO: trebamo li dozvoliti višestruka pridruživanja oblika a=b=c=d? To bi mogli posebnim pravilom za stmt...
+
     def cross(p):
         tree = p.sel()
         while op := p >= T.CROSSING:
@@ -1074,7 +1083,6 @@ class P(Parser):
 
     def list(p):
         p >> T.LUGL
-        #if not p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
         if not (p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}):
             return List([])
         exprs = [p.expr()]
@@ -1131,6 +1139,13 @@ class Program(AST):
 
         for stmt in self.statements:
             stmt.izvrši()
+
+class Statements(AST):
+    statements: ...
+
+    def izvrši(self):
+        for st in self.statements:
+            st.izvrši()
 
 class Function(AST):
     name: ...
@@ -1401,7 +1416,7 @@ class Nary(AST):
         for op,val in self.pairs[1:]:
             if op ^ T.MINUS:
                 tmp = val.vrijednost()
-                if type(tmp) == list ^ type(accum) == list:
+                if (type(tmp) == list) ^ (type(accum) == list):
                     raise SemantičkaGreška('Lista se može oduzimati samo s listom')
                 if type(accum) == list:
                     if len(tmp) != len(accum):
@@ -1421,7 +1436,7 @@ class Nary(AST):
         
             elif op ^ T.PLUS:
                 tmp = val.vrijednost()
-                if type(tmp) == list ^ type(accum) == list:
+                if (type(tmp) == list) ^ (type(accum) == list):
                     raise SemantičkaGreška('Lista se može zbrajati samo s listom')
                 if type(accum) == list:
                     if len(tmp) != len(accum):
@@ -1441,7 +1456,7 @@ class Nary(AST):
 
             elif op ^ T.MUL:
                 tmp = val.vrijednost()
-                if type(tmp) == list ^ type(accum) == list:
+                if (type(tmp) == list) ^ (type(accum) == list):
                     raise SemantičkaGreška('Lista se može množiti samo s listom')
                 if type(accum) == list:
                     if len(tmp) != len(accum):
@@ -1463,7 +1478,7 @@ class Nary(AST):
         
             elif op ^ T.DIV:
                 tmp = val.vrijednost()
-                if type(tmp) == list ^ type(accum) == list:
+                if (type(tmp) == list) ^ (type(accum) == list):
                     raise SemantičkaGreška('Lista se može dijeliti samo s listom')
                 if type(accum) == list:
                     if len(tmp) != len(accum):
@@ -1998,6 +2013,7 @@ class Declaration(AST):
 
 
 
+
 program1 = """
 let var := "nešto";
 if (var) {
@@ -2041,8 +2057,24 @@ if (a + b) {
 }
 """
 
+program7 = """
+if (2+3 = 6) {
+ let answer := 42;
+}
+"""
+
+program8 = """
+if (2+3 = 5) {
+    let a := 42;
+    a := a + 1;
+}
+"""
+
 #P(program3)
 #P(program2)
 P(program4)
 P(program5)
-P(program6)
+#P(program6)
+P(program7)
+p8 = P(program8)
+p8.izvrši()
