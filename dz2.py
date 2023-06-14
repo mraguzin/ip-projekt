@@ -1221,7 +1221,7 @@ class Binary(AST):
             left = self.left.vrijednost()
             right = self.right.vrijednost()
             if type(left) == type(right) and type(left) != list:
-                return left == right #TODO: pripazi da naši custom objekti u Pythonu rade pravilno s operatorom == i !=
+                return left == right
             elif type(left) == type(right): # riječ je o listi
                 if len(left) != len(right):
                     return False
@@ -1363,12 +1363,12 @@ class Nary(AST):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
                     for el1,el2 in zip(accum, tmp):
                         new = Nary([[op,el1], [op,el2]])
-                        el1 = new.vrijednost() # rekurzija, mijenja accum
+                        el1 = new.vrijednost() # rekurzija, mijenja accum TODO popravi ovo...
                 elif type(accum) == type(tmp) == Number:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri oduzimanju')
                     #accum.value -= unit_conv(tmp.value, tmp.unit, unit)
-                    accum -= tmp
+                    accum = accum - tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi oduzimanja')
         
@@ -1386,7 +1386,7 @@ class Nary(AST):
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri zbrajanju')
                     #accum.value += unit_conv(tmp.value, tmp.unit, unit)
-                    accum += tmp
+                    accum = accum + tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi zbrajanja')
 
@@ -1406,7 +1406,7 @@ class Nary(AST):
                     elif tmp.unit:
                         accum.unit = unit = tmp.unit
                     #accum.value *= unit_conv(tmp.value, tmp.unit, unit)
-                    accum *= tmp
+                    accum = accum * tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi množenja')
         
@@ -1426,7 +1426,7 @@ class Nary(AST):
                     elif tmp.unit:
                         accum.unit = unit = tmp.unit
                     #accum.value /= unit_conv(tmp.value, tmp.unit, unit)
-                    accum /= tmp
+                    accum = accum / tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi množenja')
                 
@@ -1437,21 +1437,24 @@ class DotList(AST):
 #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
     def vrijednost(self):
         obj = self.elements[0].vrijednost() # moramo pristupati kroz neki objekt: Fungus ili Tree
+        ret = None
         if type(obj) == Fungus:
             if self.elements[1].sadržaj == 'name':
-                return DotList.ili_samo([obj.name, *self.elements[2:]])
+                ret = DotList.ili_samo([obj.name, *self.elements[2:]])
             elif self.elements[1].sadržaj == 'latin':
-                return DotList.ili_samo([obj.latin, *self.elements[2:]])
+                ret = DotList.ili_samo([obj.latin, *self.elements[2:]])
             elif self.elements[1].sadržaj == 'dna':
-                return DotList.ili_samo([obj.dna, *self.elements[2:]])
+                ret = DotList.ili_samo([obj.dna, *self.elements[2:]])
             elif self.elements[1].sadržaj == 'taxonomy':
-                return DotList.ili_samo([obj.taxonomy, *self.elements[2:]])
+                ret = DotList.ili_samo([obj.taxonomy, *self.elements[2:]])
             elif self.elements[1].sadržaj == 'edibility':
-                return DotList.ili_samo([obj.edibility, *self.elements[2:]])
+                ret = DotList.ili_samo([obj.edibility, *self.elements[2:]])
             elif self.elements[1].sadržaj == 'timestamp':
-                return DotList.ili_samo([obj.timestamp, *self.elements[2:]])
+                ret = DotList.ili_samo([obj.timestamp, *self.elements[2:]])
             else:
                 raise SemantičkaGreška('Nepoznat atribut Fungus objekta: ' + self.elements[1].sadržaj)
+            if ret ^ DotList:
+                return ret.vrijednost()
         elif type(obj) == Tree:
             if self.elements[1].sadržaj == 'spec':
                 return obj.spec
@@ -1476,16 +1479,41 @@ class DotList(AST):
         return None
 
 class Assignment(AST):
-    variable: ...
+    variable: ...# ovo ustvari ne mora samo biti varijabla već i dot-lista
     expression: ...
 
     def izvrši(self):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
-        tmp = self.expression.vrijednost()
-        if type(tmp) == Fungus or type(tmp) == DNA:
-            rt.okolina[-1][self.variable] = self.expression.vrijednost()
-        else:
-            rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
+        if self.variable ^ T.IME:
+            tmp = self.expression.vrijednost()
+            if type(tmp) == Fungus or type(tmp) == DNA:
+                rt.okolina[-1][self.variable] = self.expression.vrijednost()
+            else:
+                rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
+        elif self.variable ^ DotList:
+            # dopuštamo izmjenu samo taksonomija...
+            dotlist = self.variable
+            var = rt.okolina[-1][dotlist.elements[0]]
+            if not dotlist.elements[0].vrijednost() ^ Tree:
+                raise SemantičkaGreška('Samo taksonomije mogu biti mijenjane sa . listama')
+            if len(dotlist.elements) != 2:
+                raise SemantičkaGreška('Nepostojeći član')
+            if dotlist.elements[1].sadržaj == 'spec':
+                var.species = self.expression.vrijednost()
+            elif dotlist.elements[1].sadržaj == 'gen':
+                var.genus = self.expression.vrijednost()
+            elif dotlist.elements[1].sadržaj == 'fam':
+                var.family = self.expression.vrijednost()
+            elif dotlist.elements[1].sadržaj == 'ord':
+                var.order = self.expression.vrijednost()
+            elif dotlist.elements[1].sadržaj == 'class':
+                var.klasa = self.expression.vrijednost()
+            elif dotlist.elements[1].sadržaj == 'phyl':
+                var.phylum = self.expression.vrijednost()
+            elif dotlist.elements[1].sadržaj == 'king':
+                var.kingdom = self.expression.vrijednost()
+            else:
+                raise SemantičkaGreška('Ilegalni element taksonomije')
 
 class Number(AST):
     value: ...
@@ -1737,7 +1765,7 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
     latin: ...
     dna: ...
     taxonomy: ...
-    datetime: ...
+    timestamp: ...
 
     def __eq__(self, other):
         return self.latin == other.latin
@@ -1750,7 +1778,7 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
         +     'Latin name: ' + self.latin + '\n'
         +     'DNA: ' + self.dna.to_string() + '\n'
         +     'Taxonomy: ' + self.taxonomy.to_string() + '\n'
-        +     'Time found: ' + self.datetime.to_string()
+        +     'Time found: ' + self.timestamp.to_string()
         return tmp
 
 #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
@@ -1788,6 +1816,16 @@ class Tree:
 class Date(AST):
     date: ... #(day,month,year) triple
 
+    def __eq__(self, other):
+        for i in range(3):
+            if self.date[i] != other.date[i]:
+                return False
+            
+        return True
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def vrijednost(self):
         return self
     
@@ -1808,6 +1846,17 @@ class DateTime(Date):
     hours: ...
     minutes: ...
     seconds: ...
+
+    def __eq__(self, other):
+        res = super().__eq__(other)
+        if not res:
+            return False
+        if self.hours == other.hours and self.minutes == other.minutes and self.seconds == other.seconds:
+            return True
+        return False
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def validiraj(self):
         super().validiraj()
@@ -1830,6 +1879,16 @@ class DateTime(Date):
 class DNA(AST):
     bases: ...
 
+    def __eq__(self, other):
+        for b1,b2 in zip(self.bases, other.bases):
+            if b1 != b2:
+                return False
+            
+        return True
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def vrijednost(self):
         return self
     
@@ -1840,6 +1899,12 @@ class DNA(AST):
         return tmp
 
 class List(DotList):
+    # def __eq__(self, other):
+    #     if len(self.elements) != len(other.elements):
+    #         return False
+    #     for el1,el2 in zip(self.elements, other.elements):
+
+
     def vrijednost(self):
         return self.elements
     
@@ -1855,6 +1920,12 @@ class List(DotList):
 
 class Edibility(AST):
     kind: ...
+
+    def __eq__(self, other):
+        return self.kind.sadržaj == other.kind.sadržaj
+    
+    def __ne__(self, other):
+        return self.kind.sadržaj != other.kind.sadržaj
 
     def vrijednost(self):
         return self
