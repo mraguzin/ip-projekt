@@ -2246,7 +2246,7 @@ print(ne);
 # P(program5)
 # P(program7)
 # p8 = P(program8)
-# p8.izvrši()
+p8.izvrši()
 P(program9).izvrši()
 P(program10).izvrši()
 p11 = P(program11)
