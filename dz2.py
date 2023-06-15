@@ -1487,13 +1487,14 @@ class Unary(AST):
                             break
                 else:
                     gen_code.append(child.dna.bases[i])
-            mutant.dna = gen_code # sada je navedeno
+            mutant.dna = DNA(gen_code) # sada je navedeno
             return mutant
         
         elif self.op ^ T.SELECTION:
-            if self.child.vrijednost() ^ List:
+            if not self.child.vrijednost() ^ List:
                 raise SemantičkaGreška('Selekcija moguća samo nad listama Fungus objekata')
-            best = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno)
+            now = datetime.datetime.now()
+            best = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
             mini = 0
             child = self.child.vrijednost()
             for fung in child:

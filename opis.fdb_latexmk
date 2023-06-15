@@ -1,13 +1,13 @@
 # Fdb version 4
-["biber opis"] 1686865601 "opis.bcf" "opis.bbl" "opis" 1686866012 0
-  "opis.bcf" 1686866012 106541 5d766b175b841b7dd374a1d42a7a4373 "pdflatex"
+["biber opis"] 1686865601 "opis.bcf" "opis.bbl" "opis" 1686868941 0
+  "opis.bcf" 1686868941 106541 5d766b175b841b7dd374a1d42a7a4373 "pdflatex"
   (generated)
   "opis.bbl"
   "opis.blg"
   (rewritten before read)
-["pdflatex"] 1686866011 "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/opis.tex" "opis.pdf" "opis" 1686866012 0
+["pdflatex"] 1686868940 "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/opis.tex" "opis.pdf" "opis" 1686868941 0
   "/home/mraguzin/.texlive2021/texmf-var/web2c/pdftex/pdflatex.fmt" 1684104201 2727068 ae7323fd13a7671ffb345a56d588ed80 ""
-  "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/opis.tex" 1686866010 6125 5090d182c9c71ecace0a5ea95a7792cd ""
+  "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/opis.tex" 1686868940 6143 06d985aaf315ebf7b8727ee3caf27085 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/lm/lm-rep-cmrm.enc" 1202520719 2299 a3b6c25d7e3d7e92b220164f555e02c3 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/lm/lm-rep-cmtt.enc" 1254269338 2315 9dd6925e74448b6c9c12cb86be6c661c ""
@@ -216,12 +216,12 @@
   "/usr/share/texlive/texmf-dist/tex/latex/xpatch/xpatch.sty" 1585258158 8314 7803f78066c4f9d008405191a4b43073 ""
   "/usr/share/texlive/texmf-dist/web2c/texmf.cnf" 1661385786 40136 b05acc85e8425979e52682d98a2bcacf ""
   "/usr/share/texlive/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1678356342 5196321 c0357fcda0e9d220440b260ce7231100 ""
-  "opis.aux" 1686866012 1809 ab0bd40b750b6aa4a9c13a7edbf32d8c "pdflatex"
+  "opis.aux" 1686868941 1809 ab0bd40b750b6aa4a9c13a7edbf32d8c "pdflatex"
   "opis.bbl" 1686865602 0 d41d8cd98f00b204e9800998ecf8427e "biber opis"
-  "opis.out" 1686866012 0 d41d8cd98f00b204e9800998ecf8427e "pdflatex"
-  "opis.run.xml" 1686866012 2256 9eaa4d07b1a4b8302c6ab58c7c981a54 "pdflatex"
-  "opis.tex" 1686866010 6125 5090d182c9c71ecace0a5ea95a7792cd ""
-  "opis.toc" 1686866012 234 d918fb7ecd8c2fcaa7f291bb1f187ab2 "pdflatex"
+  "opis.out" 1686868941 0 d41d8cd98f00b204e9800998ecf8427e "pdflatex"
+  "opis.run.xml" 1686868941 2256 9eaa4d07b1a4b8302c6ab58c7c981a54 "pdflatex"
+  "opis.tex" 1686868940 6143 06d985aaf315ebf7b8727ee3caf27085 ""
+  "opis.toc" 1686868941 234 d918fb7ecd8c2fcaa7f291bb1f187ab2 "pdflatex"
   (generated)
   "opis.aux"
   "opis.bcf"
