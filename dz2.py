@@ -1362,18 +1362,22 @@ class Binary(AST):
         elif self.op ^ T.AND:
             # nema listi
             left = self.left.vrijednost()
-            if type(left) == bool and not left:
+            #if type(left) == bool and not left:
+            if left ^ Literal and type(left.value) == bool and not left:
                 return False # short circuiting
             right = self.right.vrijednost()
-            if type(left) != bool or type(right) != bool:
+            #if type(left) != bool or type(right) != bool:
+            if not (left ^ Literal and type(left.value) == bool) or not (right ^ Literal and type(right.value) == bool):
                 raise SemantičkaGreška('Logički operatori su legalni samo nad bool izrazima')
             return left and right
         elif self.op ^ T.OR:
             left = self.left.vrijednost()
-            if type(left) == bool and left:
+            #if type(left) == bool and left:
+            if left ^ Literal and type(left.value) == bool and left:
                 return True
             right = self.right.vrijednost()
-            if type(left) != bool or type(right) != bool:
+            #if type(left) != bool or type(right) != bool:
+            if not (left ^ Literal and type(left.value) == bool) or not (right ^ Literal and type(right.value) == bool):
                 raise SemantičkaGreška('Logički operatori su legalni samo nad bool izrazima')
             return left or right
         elif self.op ^ T.EQ:
@@ -1488,7 +1492,7 @@ class Unary(AST):
                 if not fung ^ Fungus:
                     raise SemantičkaGreška('Lista selekcije se mora sastojati samo od Fungus objekata')
                 genes = []
-                for b in fung.dna.bases:
+                for b in {'A', 'T', 'C', 'G'}:
                     number = 0
                     for i in range (len(fung.dna.bases)):
                         if fung.dna.bases[i] == b:
@@ -1518,13 +1522,13 @@ class Unary(AST):
             raise SemantičkaGreška('Negirati se mogu samo numeričke liste ili brojevi')
         elif self.op ^ T.NOT:
             tmp = self.child.vrijednost()
-            if type(tmp) == bool:
-                return not tmp
             if type(tmp) == list:
                 for el in tmp:
                     new = Unary(self.op, el)
                     el = new.vrijednost()
                 return tmp
+            if tmp ^ Literal and type(tmp.value) == bool:
+                return not tmp
 
 
     def get_list_length(self):
@@ -1564,7 +1568,11 @@ class Nary(AST):
     def vrijednost(self):
         accum = copy.deepcopy(self.pairs[0][1].vrijednost())
         print(accum)
-        if type(accum) == str or type(accum) == bool or type(accum) == list:
+        if type(accum) == list:
+            unit = None
+
+        elif accum ^ Literal and (type(accum.value) == str or type(accum.value) == bool):
+        #if type(accum) == str or type(accum) == bool or type(accum) == list:
             unit = None
         else:
             unit = None if not accum ^ Number else accum.unit
@@ -1715,7 +1723,8 @@ class Assignment(AST):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
         if self.variable ^ T.IME:
             tmp = self.expression.vrijednost()
-            if type(tmp) == list or type(tmp) == str or type(tmp) == bool:
+            #if type(tmp) == list or type(tmp) == str or type(tmp) == bool:
+            if type(tmp) == list or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
                 rt.okolina[-1][self.variable] = self.expression.vrijednost()
             elif tmp ^ Edibility:
                 rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
@@ -2218,4 +2227,5 @@ class Declaration(AST):
 
     def izvrši(self):
         rt.okolina[-1][self.variable] = None
+
 

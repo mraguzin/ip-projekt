@@ -40,6 +40,7 @@ from vepar import *
 import copy
 import datetime
 import jsonpickle
+import random
 
 class T(TipoviTokena):
     EQ, LT, GT, PLUS, MINUS, PUTA, DIV, OTV, ZATV, LVIT, DVIT, LUGL, DUGL, SEMI, COLON, UPIT, COMMA, DOT = '=<>+-*/(){}[];:?,.'
@@ -94,7 +95,7 @@ class T(TipoviTokena):
     class FUNGUS(Token):
         literal = 'Fungus'
         def validate_call(self, *args):
-            if len(args) != 4 or len(args) != 5: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
+            if len(args) < 4 or len(args) > 5: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
                 raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
             if not is_stringetic(args[0]) or is_list(args[0]) or not is_stringetic(args[1]) or is_list(args[1]) or not (args[2] ^ T.IME or args[2] ^ DNA) or not(args[3] ^ T.IME or args[3] ^ ConstructorCall and not args[3].type ^ T.TREE):
                 raise SemantičkaGreška('Konstruktor Fungus-a traži ime,latinsko ime,DNA,taksonomiju i opcionalno još vrijeme pronalaska')
@@ -398,7 +399,7 @@ def is_fungus(tree):
         return True
     elif tree ^ T.IME or tree ^ Call:
         return True
-    elif tree ^ ConstructorCall and not tree.type ^ T.FUNGUS:
+    elif tree ^ ConstructorCall and tree.type ^ T.FUNGUS:
         return True
     elif tree ^ List:
         for el in tree.elements:
@@ -445,7 +446,8 @@ def is_stringetic(tree):
         return False
     elif tree ^ Nary and tree.pairs[0][0] ^ T.PLUS:
         return True
-    elif tree ^ Literal and tree.value ^ T.STRING:
+    #elif tree ^ Literal and tree.value ^ T.STRING:
+    elif tree ^ Literal and type(tree.value) == str:
         return True
     elif tree ^ List:
         for el in tree.elements:
@@ -1093,7 +1095,7 @@ class P(Parser):
                     if base not in {'A', 'T', 'C', 'G'}:
                         raise SintaksnaGreška('Netočan format DNA: očekivani nukleotidi iz {A,T,C,G}')
                 p >> T.ZATV
-                return DNA(bases)
+                return DNA(list(bases.sadržaj))
         args = []
         if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
@@ -1323,28 +1325,60 @@ class Binary(AST):
 
     def vrijednost(self):
         if self.op ^ T.CROSSING:
-            children = []
-            if rt.params['dist'] == 'gauss': # TODO:preostale mogućnosti
-                if self.left ^ List and self.right ^ List and self.left.get_list_length() == self.right.get_list_length():
-                    children = [onecross(left, right) for left,right in zip(self.left, self.right)]
-                elif self.left ^ List and self.right ^ List and len(rt.params['preferparents']) != 0:
-                    prefs = rt.params['preferparents']
-                    children = [onecross(self.left[prefs[0]], self.right[prefs[1]])]
+            if not (self.left.vrijednost() ^ Fungus) or not (self.right.vrijednost() ^ Fungus):
+                raise SemantičkaGreška('Zasad oba operanda križanja moraju biti Fungus objekti, ne liste!')
+            # shorter = self.left.get_list_length()
+            # longer = self.right.get_list_length()
+            # lista = self.right
+            # if shorter > self.right.get_list_length():
+            #     shorter = self.right.get_list_length()
+            #     longer = self.left.get_list_length()
+            #     lista = self.left
+            one = self.left.vrijednost().dna
+            two = self.right.vrijednost().dna
+            shorter = len(one.bases) if len(one.bases) < len(two.bases) else len(two.bases)
+            longer = len(one.bases) if len(one.bases) > len(two.bases) else len(two.bases)
+            lista = one.bases if len(one.bases) > len(two.bases) else two.bases
+
+    #name: ...
+    # latin: ...
+    # dna: ...
+    # taxonomy: ...
+    # timestamp: ...
+            
+            gen_code = []
+            for i in range (shorter):
+                num = random.randint(0,1)
+                if num == 0:
+                    gen_code.append(self.left.vrijednost().dna.bases[i])
+                else:
+                    gen_code.append(self.right.vrijednost().dna.bases[i])
+            num = random.randint(0,1)
+            if num == 0:
+                for i in range (longer - shorter):
+                    gen_code.append(lista[shorter + i])
+            newdna = DNA(gen_code)
+            return Fungus('nema', 'non curat', newdna, nenavedeno, nenavedeno) # nećemo se zamarati ovim ostalim atributima...
+            
         elif self.op ^ T.AND:
             # nema listi
             left = self.left.vrijednost()
-            if type(left) == bool and not left:
+            #if type(left) == bool and not left:
+            if left ^ Literal and type(left.value) == bool and not left:
                 return False # short circuiting
             right = self.right.vrijednost()
-            if type(left) != bool or type(right) != bool:
+            #if type(left) != bool or type(right) != bool:
+            if not (left ^ Literal and type(left.value) == bool) or not (right ^ Literal and type(right.value) == bool):
                 raise SemantičkaGreška('Logički operatori su legalni samo nad bool izrazima')
             return left and right
         elif self.op ^ T.OR:
             left = self.left.vrijednost()
-            if type(left) == bool and left:
+            #if type(left) == bool and left:
+            if left ^ Literal and type(left.value) == bool and left:
                 return True
             right = self.right.vrijednost()
-            if type(left) != bool or type(right) != bool:
+            #if type(left) != bool or type(right) != bool:
+            if not (left ^ Literal and type(left.value) == bool) or not (right ^ Literal and type(right.value) == bool):
                 raise SemantičkaGreška('Logički operatori su legalni samo nad bool izrazima')
             return left or right
         elif self.op ^ T.EQ:
@@ -1424,10 +1458,58 @@ class Unary(AST):
 
     def izvrši(self):
         self.vrijednost()
-
+#    name: ...
+    # latin: ...
+    # dna: ...
+    # taxonomy: ...
+    # timestamp: ...
     def vrijednost(self):
-        if self.op ^ T.MUTATION: pass #TODO
-        elif self.op ^ T.SELECTION: pass #TODO
+        if self.op ^ T.MUTATION:
+            if not self.child.vrijednost() ^ Fungus:
+                raise SemantičkaGreška('Mutacija zasad moguća samo nad jednom gljivom tj. Fungus objektom')
+            mutant = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno)
+            gen_code = []
+            child = self.child.vrijednost()
+            for i in range (len(child.dna.bases)):
+                num = random.randint(0,2)
+                if num == 0:
+                    for b in child.dna.bases:
+                        if b != child.dna.bases[i]:
+                            gen_code.append(b)
+                            break
+                else:
+                    gen_code.append(child.dna.bases[i])
+            mutant.dna = gen_code # sada je navedeno
+            return mutant
+        
+        elif self.op ^ T.SELECTION:
+            if type(self.child.vrijednost()) != list:
+                raise SemantičkaGreška('Selekcija moguća samo nad listama Fungus objekata')
+            best = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno)
+            mini = 0
+            child = self.child.vrijednost()
+            for fung in child:
+                fung = fung.vrijednost()
+                if not fung ^ Fungus:
+                    raise SemantičkaGreška('Lista selekcije se mora sastojati samo od Fungus objekata')
+                genes = []
+                for b in {'A', 'T', 'C', 'G'}:
+                    number = 0
+                    for i in range (len(fung.dna.bases)):
+                        if fung.dna.bases[i] == b:
+                            number+= 1
+                    genes.append(number/len(fung.dna.bases))
+                value = 0
+                for i in range (3):
+                    for j in range (3 - i):
+                        temp = genes[i] - genes[i+j+1]
+                        temp*= temp
+                        value+= temp
+                if mini < value:
+                    mini = value
+                    best = fung
+            return best
+        
         elif self.op ^ T.MINUS:
             tmp = self.child.vrijednost()
             if tmp ^ Number:
@@ -1441,13 +1523,13 @@ class Unary(AST):
             raise SemantičkaGreška('Negirati se mogu samo numeričke liste ili brojevi')
         elif self.op ^ T.NOT:
             tmp = self.child.vrijednost()
-            if type(tmp) == bool:
-                return not tmp
             if type(tmp) == list:
                 for el in tmp:
                     new = Unary(self.op, el)
                     el = new.vrijednost()
                 return tmp
+            if tmp ^ Literal and type(tmp.value) == bool:
+                return not tmp
 
 
     def get_list_length(self):
@@ -1487,7 +1569,11 @@ class Nary(AST):
     def vrijednost(self):
         accum = copy.deepcopy(self.pairs[0][1].vrijednost())
         print(accum)
-        if type(accum) == str or type(accum) == bool or type(accum) == list:
+        if type(accum) == list:
+            unit = None
+
+        elif accum ^ Literal and (type(accum.value) == str or type(accum.value) == bool):
+        #if type(accum) == str or type(accum) == bool or type(accum) == list:
             unit = None
         else:
             unit = None if not accum ^ Number else accum.unit
@@ -1638,7 +1724,8 @@ class Assignment(AST):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
         if self.variable ^ T.IME:
             tmp = self.expression.vrijednost()
-            if type(tmp) == list or type(tmp) == str or type(tmp) == bool:
+            if type(tmp) == list or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
+            #if tmp ^ list or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
                 rt.okolina[-1][self.variable] = self.expression.vrijednost()
             elif tmp ^ Edibility:
                 rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
@@ -1802,6 +1889,8 @@ class ConstructorCall(AST):
     def vrijednost(self):
         true = Literal(True)
         false = Literal(False)
+
+    #      
                         
         if self.type ^ T.BOOL:
             if len(self.arguments) != 1:
@@ -1962,6 +2051,9 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
     taxonomy: ...
     timestamp: ...
 
+    def vrijednost(self):
+        return self
+
     def __eq__(self, other): # za usporedbu gljiva uzimamo latinski naziv kao primarni ključ
         return self.latin == other.latin
     
@@ -1975,6 +2067,9 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
         +     'Taxonomy: ' + self.taxonomy.to_string() + '\n'
         +     'Time found: ' + self.timestamp.to_string()
         return tmp
+    
+    def get_list_length(self):
+        return None
 
 #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
 class Tree:
@@ -1985,6 +2080,12 @@ class Tree:
     klasa: ...
     phylum: ...
     kingdom: ...
+
+    def vrijednost(self):
+        return self
+    
+    def get_list_length(self):
+        return None
 
     def __eq__(self, other):
         for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
@@ -2092,6 +2193,9 @@ class DNA(AST):
         for b in self.bases:
             tmp += b
         return tmp
+    
+    def get_list_length(self):
+        return None
 
 class List(DotList):
     def __iter__(self):
@@ -2133,7 +2237,6 @@ class Declaration(AST):
 
     def izvrši(self):
         rt.okolina[-1][self.variable] = None
-
 
 
 
@@ -2242,11 +2345,27 @@ let ne := Number("14.22"); # konvertirajući konstruktor
 print(ne);
 """
 
+
+    # name: ...
+    # latin: ...
+    # dna: ...
+    # taxonomy: ...
+    # timestamp: ...
+
+program15 = """
+let dna1 := DNA(ATCGGTACG);
+let dna2 := DNA(GCCGGTCCG);
+let tax := Tree();
+tax.phyl := "tkozna";
+let fung1 := Fungus("naziv", "latinski", dna1, tax);
+let fung2 := Fungus("naziv2", "latinski2", dna2, tax);
+"""
+
 # P(program4)
 # P(program5)
 # P(program7)
 # p8 = P(program8)
-p8.izvrši()
+#p8.izvrši()
 P(program9).izvrši()
 P(program10).izvrši()
 p11 = P(program11)
@@ -2257,3 +2376,5 @@ p13 = P(program13)
 p13.izvrši()
 p14 = P(program14)
 p14.izvrši()
+p15 = P(program15)
+p15.izvrši()
