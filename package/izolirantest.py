@@ -58,7 +58,6 @@ class T(TipoviTokena):
     # pri izvođenju ako je u računu s dimenzijama neki element bez eksplicitno navedene jedinice
     FUNCTION = 'function'
     FOR, IF, ELSE = 'for', 'if', 'else'
-    TRUE, FALSE = 'true', 'false'
 
 
     #class DOT(Token): pass
@@ -71,6 +70,14 @@ class T(TipoviTokena):
             if len(args) != 1 or not is_stringetic(args[0]) or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor String-a traži string izraz')
             return True
+    class TRUE(Token):
+        literal = 'true'
+        def vrijednost(self):
+            return True
+    class FALSE(Token):
+        literal = 'false'
+        def vrijednost(self):
+            return False
     class NUMBER(Token):
         literal = 'Number'
         def validate_call(self, *args):
@@ -112,7 +119,7 @@ class T(TipoviTokena):
         literal = 'DNA'
         def validate_call(self, *args):
             if len(args) != 1:
-                raise SemantičkaGreška("Can't get here")
+                raise SemantičkaGreška("Can't get here") # jer DNA se posebno parsira unutar same cons funkcije
             return True
     class DATETIME(Token):
         literal = 'Datetime'
@@ -353,7 +360,7 @@ class GreškaPridruživanja(SintaksnaGreška): """ Ilegalno """
 # (sigurno ne želimo prototipove)
 
 def is_in_symtable(symbol): # provjerava cijeli stog scopeova za utvrditi je li trenutno deklariran symbol; ne podržavamo ugnježđavanje funkcijskih
-    # blokova, pa je max.dubina stoga 2 (globalan i funkcijski scope)
+    # blokova, ali if i for otvaraju novi blok!
     for i in range(len(rt.symtab)-1, -1, -1):
         if symbol in rt.symtab[i]:
             return True
@@ -379,7 +386,7 @@ def get_symtab(symbol):
     # * operator križanja. Npr. fungus1 ⊗ fungus2; obavlja križanje dvije gljive i vraća njihovo "dijete"
     # * operator selekcije. Npr. [fungus1,fungus2,fungus3]⊙; 
 def is_fungus(tree):
-    if tree ^ Unary and (tree.op ^T.MUTATION or tree.op ^ T.SELECTION):
+    if tree ^ Unary and (tree.op ^ T.MUTATION or tree.op ^ T.SELECTION):
         return True
     elif tree ^ Binary and tree.op ^ T.CROSSING:
         return True
@@ -468,6 +475,8 @@ def is_boolean(tree):
     return False
 
 def listcheck(checker, *args): # rekurzivna provjera kompatibilnosti listi
+        if len(args) == 0:
+            return True
         num_lists = 0
         for arg in args:
             if is_list(arg):
@@ -511,6 +520,8 @@ def listcheck_number(*args): # rekurzivna provjera kompatibilnosti brojevnih lis
     return listcheck(is_arithmetic, *args)
 
 def listcheck_numberunits(*args):
+        if len(args) == 0:
+            return True
         num_lists = 0
         for arg in args:
             if is_list(arg):
@@ -559,6 +570,8 @@ def listcheck_bool(*args):
     return listcheck(is_boolean, *args)
 
 def units_check(*args):
+    if len(args) == 0:
+        return True
     num_lists = 0
     for arg in args:
         if is_list(arg):
@@ -756,7 +769,9 @@ class P(Parser):
 # setargs -> (IME COLON expr COMMA)+ IME COLON expr | IME COLON expr
     def call(p):
         fun = None
+        name = None
         if fun := p >= T.IME:
+            name = fun
             if not is_function_defined(fun): # koristimo ovu zasebnu funkciju za funkcijske simbole jer oni moraju biti samo u globalnom scopeu
                 raise SemantičkaGreška('Funkcija ' + fun.sadržaj + ' nije definirana')
             if fun.sadržaj == 'print': #stvarno moramo ovako...
@@ -772,7 +787,7 @@ class P(Parser):
                 p >> T.ZATV
                 return Call(fun, args)
             
-            #fun = rt.funtab[fun]
+            fun = rt.funtab[fun]
         elif fun := p >= T.SETPARAM:
             p >> T.OTV
             args = {}
@@ -789,15 +804,17 @@ class P(Parser):
             return Call(fun, args)
         else: 
             fun = p >> {T.READ, T.WRITE}
+            name = fun
         
         p >> T.OTV
         args = []
         if p > {T.MUTATION, T.IME, T.BROJ, T.STRING, T.TRUE, T.FALSE, T.MINUS, T.NOT, T.OTV, T.STRINGTYPE, T.NUMBER, T.BOOL, T.FUNGUS, T.TREE, T.EDIBILITY, T.DNA, T.DATETIME, T.DEADLY, T.TOXIC1, T.TOXIC2, T.EDIBLE, T.DATUM, T.LUGL}:
             args = p.args()
-        #fun.validate_call(*args)
-        rt.funtab[fun].validate_call(*args)
+        fun.validate_call(*args)
+        #rt.funtab[fun].validate_call(*args)
         p >> T.ZATV
-        return Call(fun, args)
+        #return Call(fun, args)
+        return Call(name, args)
     
 # expr -> expr0 ASGN expr | expr0
 # expr0 -> cross UPIT expr0 COLON expr | cross
@@ -918,6 +935,9 @@ class P(Parser):
         arithmetic = True
         stringetic = True
         tlen = terms[-1][1].get_list_length()
+        tocheck = []
+        if not (terms[-1][1] ^ T.IME or terms[-1][1] ^ Call or terms[-1][1] ^ ConstructorCall):
+            tocheck.append(terms[-1][1])
         while op := p >= {T.PLUS, T.MINUS}:
             if terms[-1][1] ^ Assignment:
                 raise GreškaPridruživanja
@@ -935,10 +955,9 @@ class P(Parser):
                 if not arithmetic:
                     raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
                 stringetic = False
-            if terms[-1][1] ^ List:
-                if tlen != terms[-1][1].get_list_length():
-                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
             terms.append([op, p.term()])
+            if not (terms[-1][1] ^ T.IME or terms[-1][1] ^ Call or terms[-1][1] ^ ConstructorCall):
+                tocheck.append(terms[-1][1])
         if len(terms) == 1:
             return terms[0][1]
         else: #TODO: bilo bi lijepo kada ne bi morali ponoviti cijeli ovaj blok ovdje... do while?
@@ -958,35 +977,33 @@ class P(Parser):
                 if not arithmetic:
                     raise SemantičkaGreška('Oduzimanje nije podržano nad stringovima')
                 stringetic = False
-            if terms[-1][1] ^ List:
-                if tlen != terms[-1][1].get_list_length():
-                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-        if not listcheck_numberunits(*[el[1] for el in terms]): # ovdje ne moramo provjeravati ništa osim pravilnosti lista (rekurzivno), jer je kod iznad
-            # već provjerio sve što se tiče dopuštenih operacija, što uključuje i korektnost jedinica
+        #if not listcheck_numberunits(*[el[1] for el in terms]):
+        if not listcheck_numberunits(*tocheck):
             raise SemantičkaGreška('Nekompatibilne liste za + i -')
         return Nary(terms)
     
     def term(p):
         facts = [[T.PUTA, p.fact()]]
         flen = facts[-1][1].get_list_length()
+        tocheck = []
+        if not (facts[-1][1] ^ T.IME or facts[-1][1] ^ Call or facts[-1][1] ^ ConstructorCall):
+            tocheck.append(facts[-1][1])
         while op := p >= {T.PUTA, T.DIV}:
             if not is_arithmetic(facts[-1][1]):
                 raise SemantičkaGreška('Množenje i dijeljenje moguće samo s brojevnim operandima/listama')
             left = facts[-1][1]
             facts.append([op, p.fact()])
+            if facts[-1][1] ^ T.IME or facts[-1][1] ^ Call:
+                tocheck.append(facts[-1][1])
             right = facts[1][1]
-            #if left ^ Number and left.unit and not (right ^ Number and not right.unit) or right ^ Number and right.unit and not (left ^ Number and not left.unit):
-             #   raise SemantičkaGreška('Množenje/dijeljenje dimenzionalnom veličinom je dozvoljeno samo s (bezdimenzionalnim) skalarom')
-            if facts[-1][1] ^ List:
-                if facts[-1][1].get_list_length() != flen:
-                    raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
-                # ako se liste pojavljuju u množenju/dijeljenju, to je dopustivo i u proizvoljnoj kombinaciji sa skalarima, s prirodnom
-                # (lijevo asociranom) interpretacijom, ali sve liste moraju biti jednake duljine ("broadcasting")
+
         if len(facts) == 1:
             return facts[0][1]
-        if not listcheck_number(*[el[1] for el in facts]):
+        #if not listcheck_number(*[el[1] for el in facts]):
+        if not listcheck_number(*tocheck):
             raise SemantičkaGreška('Nekompatibilne liste brojeva za * i /')
-        if not units_check(*[el[1] for el in facts]):
+        #if not units_check(*[el[1] for el in facts]):
+        if not units_check(*tocheck):
             raise SemantičkaGreška('Množenje/dijeljenje dimenzionalnom veličinom je dozvoljeno samo s (bezdimenzionalnim) skalarom')
         return Nary(facts)
     
@@ -1022,14 +1039,14 @@ class P(Parser):
                 print('ime je sada=',var)
                 for whatever in rt.symtab[-1]:
                     print(whatever)
-                raise p.greška('Ime ' + var.sadržaj + ' nije viđeno do sada')   
+                raise SintaksnaGreška('Ime ' + var.sadržaj + ' nije viđeno do sada')
         elif p > {T.READ, T.WRITE, T.SETPARAM}:
             return p.call()
         elif num := p >= T.BROJ:
             unit = p >= {T.MILIGRAM, T.GRAM, T.KILOGRAM}
             return Number(num.vrijednost(), unit)
         elif literal := p >= {T.STRING, T.TRUE, T.FALSE}:
-            return Literal(literal)
+            return Literal(literal.vrijednost())
         elif op := p >= {T.MINUS, T.NOT}:
             below = p.bot()
             if op ^ T.MINUS and not is_arithmetic(below):
@@ -1144,13 +1161,22 @@ class Povratak(NelokalnaKontrolaToka): pass
 class Nastavak(NelokalnaKontrolaToka): pass
 class Prekid(NelokalnaKontrolaToka): pass
 
-def printfun(*args):
+def __printfun(*args):
     for arg in args:
         arg = arg.vrijednost()
-        if type(arg) == str or type(arg) == bool:
-            print(arg)
+        if type(arg) == list:
+            tmp = '['
+            for a in arg:
+                tmp += __printfun(a) + ','
+            tmp += ']'
+            return tmp
+        elif type(arg) == str or type(arg) == bool:
+            return(str(arg))
         else:
-            print(arg.to_string())
+            return arg.to_string()
+
+def printfun(*args):
+    print(__printfun(*args))
 
 class Program(AST):
     statements: ...
@@ -1402,9 +1428,9 @@ class Unary(AST):
                 tmp.value = -tmp.value
                 return tmp
             if type(tmp) == list:
-                for el in tmp:
-                    new = Unary(self.op, el)
-                    el = new.vrijednost() # rekurzija, mijenja listu
+                for i in range(len(tmp)):
+                    new = Unary(self.op, tmp[i])
+                    tmp[i] = new.vrijednost() # rekurzija, mijenja listu
                 return tmp
             raise SemantičkaGreška('Negirati se mogu samo numeričke liste ili brojevi')
         elif self.op ^ T.NOT:
@@ -1424,20 +1450,24 @@ class Unary(AST):
 def unit_conv(val, src, dest):
     if not dest:
         return val
-    if type(src) == type(dest):
+    if src.sadržaj == dest.sadržaj:
         return val
-    if src ^ T.MILIGRAM and dest ^ T.GRAM:
+    print('src', src.sadržaj)
+    print('dest', dest.sadržaj)
+    if (src.sadržaj == 'mg') and (dest.sadržaj == 'g'):
         return val / 1000
-    if src ^ T.GRAM and dest ^ T.MILIGRAM:
+    if (src.sadržaj == 'g') and (dest.sadržaj == 'mg'):
         return val * 1000
-    if src ^ T.KILOGRAM and dest ^ T.GRAM:
+    if (src.sadržaj == 'kg') and (dest.sadržaj == 'g'):
         return val * 1000
-    if src ^ T.GRAM and dest ^ T.KILOGRAM:
+    if (src.sadržaj == 'g') and (dest.sadržaj == 'kg'):
         return val / 1000
-    if src ^ T.KILOGRAM and dest ^ T.MILIGRAM:
+    if (src.sadržaj == 'kg') and (dest.sadržaj == 'mg'):
         return val * 1e6
-    if src ^ T.MILIGRAM and dest ^ T.KILOGRAM:
+    if (src.sadržaj == 'mg') and (dest.sadržaj == 'kg'):
         return val / 1e6
+    else:
+        raise SemantičkaGreška('?!')
 
 class Nary(AST):
     pairs: ... # (op,expr) pairs
@@ -1450,7 +1480,11 @@ class Nary(AST):
     
     def vrijednost(self):
         accum = copy.deepcopy(self.pairs[0][1].vrijednost())
-        unit = None if not accum ^ Number else accum.unit
+        print(accum)
+        if type(accum) == str or type(accum) == bool or type(accum) == list:
+            unit = None
+        else:
+            unit = None if not accum ^ Number else accum.unit
         for op,val in self.pairs[1:]:
             if op ^ T.MINUS:
                 tmp = val.vrijednost()
@@ -1464,7 +1498,8 @@ class Nary(AST):
                         el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif accum ^ Number and tmp ^ Number:
+                #elif accum ^ Number and tmp ^ Number:
+                elif type(accum) == Number and type(tmp) == Number:
                     if unit and not tmp.unit or not unit and tmp.unit:
                         raise SemantičkaGreška('Nije navedena jedinica pri oduzimanju')
                     #accum.value -= unit_conv(tmp.value, tmp.unit, unit)
@@ -1482,10 +1517,13 @@ class Nary(AST):
                     for i in range(len(accum)):
                         el1 = accum[i]
                         el2 = tmp[i]
+                        print('el 1 el2:',el1,el2)
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif accum ^ Number and tmp ^ Number or type(accum) == type(tmp) == str:
-                    if unit and not tmp.unit or not unit and tmp.unit:
+                        print('new nary')
+                #elif accum ^ Number and tmp ^ Number or type(accum) == type(tmp) == str:
+                elif type(accum) == Number and type(tmp) == Number or type(accum) == type(tmp) == Literal:
+                    if type(tmp) != Literal and (unit and not tmp.unit or not unit and tmp.unit):
                         raise SemantičkaGreška('Nije navedena jedinica pri zbrajanju')
                     #accum.value += unit_conv(tmp.value, tmp.unit, unit)
                     accum = accum + tmp
@@ -1504,7 +1542,8 @@ class Nary(AST):
                         el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif accum ^ Number and tmp ^ Number:
+                #elif accum ^ Number and tmp ^ Number:
+                elif type(accum) == Number and type(tmp) == Number:
                     if unit and tmp.unit:
                         raise SemantičkaGreška('Nije moguće množiti dvije dimenzionalne veličine')
                     elif tmp.unit:
@@ -1526,7 +1565,8 @@ class Nary(AST):
                         el2 = tmp[i]
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                elif accum ^ Number and  tmp ^ Number:
+                #elif accum ^ Number and  tmp ^ Number:
+                elif type(accum) == Number and type(tmp) == Number:
                     if unit and tmp.unit:
                         raise SemantičkaGreška('Nije moguće dijeliti dvije dimenzionalne veličine')
                     elif tmp.unit:
@@ -1592,10 +1632,17 @@ class Assignment(AST):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
         if self.variable ^ T.IME:
             tmp = self.expression.vrijednost()
-            if tmp ^ Fungus or tmp ^ DNA:
+            if type(tmp) == list or type(tmp) == str or type(tmp) == bool:
                 rt.okolina[-1][self.variable] = self.expression.vrijednost()
-            else:
+            elif tmp ^ Edibility:
                 rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
+            else:
+                rt.okolina[-1][self.variable] = self.expression.vrijednost()
+            # elif type(tmp) == list  or not(tmp ^ Fungus or tmp ^ DNA):
+            #     rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
+            # else:
+            #     rt.okolina[-1][self.variable] = self.expression.vrijednost()
+                
         elif self.variable ^ DotList:
             # dopuštamo izmjenu samo taksonomija...
             dotlist = self.variable
@@ -1626,6 +1673,10 @@ class Number(AST):
     unit: ...
 
     def __add__(self, other):
+        if other.unit:
+            print('other unit:', other.unit.sadržaj)
+        if self.unit:
+            print('this unit:', self.unit.sadržaj)
         val = self.value + unit_conv(other.value, other.unit, self.unit)
         return Number(val, self.unit)
     
@@ -1692,23 +1743,47 @@ class Literal(AST):
 
     def izvrši(self):
         raise SemantičkaGreška('Ovo nije naredba')
+    
+    def __add__(self, other):
+        if (self.value == True) or (self.value == False):
+            raise SemantičkaGreška('Bool izrazi se ne mogu zbrajati')
+        # onda je string
+        tmp = self.value + other.value
+        return Literal(tmp)
+    
+    def __eq__(self, other):
+        if type(self.value) == type(other.value):
+            return self.value == other.value
+        return False
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __bool__(self):
+        if type(self.value) == str:
+            if len(self.value) == 0:
+                return False
+            return True
+        else:
+            return self.value
 
     def vrijednost(self):
-        if self.value ^ T.STRING:
-            return self.value.vrijednost()
-        elif type(self.value) == str:
-            return self.value
-        elif self.value ^ T.TRUE:
-            return True
-        elif self.value ^ T.FALSE:
-            return False
+        return self
+        # if self.value ^ T.STRING:
+        #     return self.value.vrijednost()
+        # elif type(self.value) == str:
+        #     return self.value
+        # elif self.value ^ T.TRUE:
+        #     return True
+        # elif self.value ^ T.FALSE:
+        #     return False
         raise SemantičkaGreška('Nemoguć literal')
 
     def get_list_length(self):
         return None
         
     def to_string(self):
-        return self.value.vrijednost()
+        return str(self.value)
     
 
 class ConstructorCall(AST):
@@ -2126,10 +2201,38 @@ let null;
 print(mojafun(true, 0));
 """
 
+program11 = """
+let array := [1, 2, 3, 4];
+let vec := array + [10, 11, 12, 13];
+print(vec);
+"""
+
+program12 = """
+let v1 := [3, 54g, 1mg, 0, -1];
+let v2 := [1, 1g, 1g, 0, 0];
+#let illegal := [1g, 0] + [2, 2];
+print(v1+v2);
+"""
+
+program13 = """
+let s1 := "Ovo je ";
+let s2 := "string!";
+print(s1+s2);
+let svec1 := ["Vektor", "stringova", "?"];
+let svec2 := ["Šta", "će", "ti to"];
+print(svec1+svec2);
+"""
+
 # P(program4)
 # P(program5)
 # P(program7)
 # p8 = P(program8)
 # p8.izvrši()
-# P(program9).izvrši()
+P(program9).izvrši()
 P(program10).izvrši()
+p11 = P(program11)
+p11.izvrši()
+p12 = P(program12)
+p12.izvrši()
+p13 = P(program13)
+p13.izvrši()
