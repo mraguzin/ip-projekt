@@ -344,7 +344,7 @@ class GreškaPridruživanja(SintaksnaGreška): """ Ilegalno """
 # | datespec | list
 # list -> LUGL args? DUGL
 # unit -> MILIGRAM | GRAM | KILOGRAM
-# cons -> type OTV args? ZATV | DNA LUGL params DUGL | DNA OTV IME ZATV  # konstruktori za builtin tipove
+# cons -> type OTV args? ZATV | DNA LUGL params DUGL | DNA OTV IME ZATV  # konstruktori za builtin tipove, primjetimo ovdje da imamo poseban slučaj za DNA
 # fun -> FUNCTION IME OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
 # params -> (IME COMMA)+ IME | IME
 # stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI
@@ -891,7 +891,7 @@ class P(Parser):
             tmp = p.mut()
             if not is_fungus(tmp):
                 raise SemantičkaGreška('Samo se gljive ili njihove liste mogu mutirati')
-            return Unary(op, p.mut())
+            return Unary(op, tmp)
         return p.expr2()
         
     def expr2(p):
@@ -1475,7 +1475,7 @@ class Unary(AST):
         if self.op ^ T.MUTATION:
             if not self.child.vrijednost() ^ Fungus:
                 raise SemantičkaGreška('Mutacija zasad moguća samo nad jednom gljivom tj. Fungus objektom')
-            mutant = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno)
+            mutant = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno)
             gen_code = []
             child = self.child.vrijednost()
             for i in range (len(child.dna.bases)):
@@ -1487,13 +1487,14 @@ class Unary(AST):
                             break
                 else:
                     gen_code.append(child.dna.bases[i])
-            mutant.dna = gen_code # sada je navedeno
+            mutant.dna = DNA(gen_code) # sada je navedeno
             return mutant
         
         elif self.op ^ T.SELECTION:
-            if self.child.vrijednost() ^ List:
+            if not self.child.vrijednost() ^ List:
                 raise SemantičkaGreška('Selekcija moguća samo nad listama Fungus objekata')
-            best = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno)
+            now = datetime.datetime.now()
+            best = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
             mini = 0
             child = self.child.vrijednost()
             for fung in child:
@@ -2389,6 +2390,40 @@ let fung2 := Fungus("naziv2", "latinski2", dna2, tax);
 print(fung1);
 """
 
+program16 = """
+let dna := DNA(ATCGAGCCGGGT); # naravno, ovo je sve izmišljeno za demo svrhe
+let tax := Tree(); # uspostavljamo  taksonomiju za konkretnu gljivu
+tax.king := "Fungi"; # ok, očekivano...
+tax.class := "Agaricomycetes";
+tax.ord := "Agaricales";
+tax.fam := "Amanitaceae";
+tax.gen := "Amanita";
+tax.spec := "A. muscaria";
+
+let gljiva := Fungus("muhara", "Amanita muscaria", dna, tax); # datum će biti dodijeljen automatski
+let mutirana := ⥼ gljiva;
+let mutirana2:= mutate mutirana; # mutate je alias za genetski operator mutiranja ⥼
+let dijete := mutirana ⊗ mutirana2;
+let najbolja := [gljiva, mutirana, mutirana2]⊙;
+print(najbolja);
+"""
+
+program0 = """
+let dna := DNA(ATCGAGCCGGGT); # naravno, ovo je sve izmišljeno za demo svrhe
+let tax := Tree(); # uspostavljamo  taksonomiju za konkretnu gljivu
+tax.king := "Fungi"; # ok, očekivano...
+tax.class := "Agaricomycetes";
+tax.ord := "Agaricales";
+tax.fam := "Amanitaceae";
+tax.gen := "Amanita";
+tax.spec := "A. muscaria";
+
+let gljiva0 := Fungus("muhara", "Amanita muscaria", dna, tax); # datum će biti dodijeljen automatski (trenutni)
+⥼ gljiva0;
+"""
+
+#alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
+    #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #
 # P(program4)
 # P(program5)
 # P(program7)
@@ -2406,3 +2441,6 @@ p14 = P(program14)
 p14.izvrši()
 p15 = P(program15)
 p15.izvrši()
+p0 = P(program0)
+p16 = P(program16)
+p16.izvrši()

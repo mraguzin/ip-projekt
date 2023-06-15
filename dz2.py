@@ -344,7 +344,7 @@ class GreškaPridruživanja(SintaksnaGreška): """ Ilegalno """
 # | datespec | list
 # list -> LUGL args? DUGL
 # unit -> MILIGRAM | GRAM | KILOGRAM
-# cons -> type OTV args? ZATV | DNA LUGL params DUGL | DNA OTV IME ZATV  # konstruktori za builtin tipove
+# cons -> type OTV args? ZATV | DNA LUGL params DUGL | DNA OTV IME ZATV  # konstruktori za builtin tipove, primjetimo ovdje da imamo poseban slučaj za DNA
 # fun -> FUNCTION IME OTV params? ZATV LVIT (stmt | RETURN expr SEMI)* DVIT
 # params -> (IME COMMA)+ IME | IME
 # stmt -> forloop | branch | call SEMI | expr SEMI | decl SEMI
@@ -891,7 +891,7 @@ class P(Parser):
             tmp = p.mut()
             if not is_fungus(tmp):
                 raise SemantičkaGreška('Samo se gljive ili njihove liste mogu mutirati')
-            return Unary(op, p.mut())
+            return Unary(op, tmp)
         return p.expr2()
         
     def expr2(p):
@@ -1475,7 +1475,7 @@ class Unary(AST):
         if self.op ^ T.MUTATION:
             if not self.child.vrijednost() ^ Fungus:
                 raise SemantičkaGreška('Mutacija zasad moguća samo nad jednom gljivom tj. Fungus objektom')
-            mutant = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno)
+            mutant = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno)
             gen_code = []
             child = self.child.vrijednost()
             for i in range (len(child.dna.bases)):
@@ -2264,6 +2264,5 @@ class Declaration(AST):
 
     def izvrši(self):
         rt.okolina[-1][self.variable] = None
-
 
 

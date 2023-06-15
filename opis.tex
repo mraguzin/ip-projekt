@@ -1,0 +1,134 @@
+\documentclass[12pt]{scrartcl}
+\usepackage[utf8]{inputenc}
+\usepackage[english,croatian]{babel}
+\usepackage[unicode]{hyperref}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{thmtools}
+\usepackage{csquotes}
+\usepackage[style=numeric]{biblatex}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{patterns,decorations.pathreplacing}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    %keywordstyle=\color{magenta},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+\renewcommand\lstlistingname{Implementacija}
+\renewcommand\lstlistlistingname{Implementacije}
+\def\lstlistingautorefname{Impl.}
+
+\hypersetup{
+    colorlinks,
+    linkcolor={red!50!black},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}
+}
+
+\MakeOuterQuote{"}
+\declaretheorem{teorem}
+\declaretheorem[sibling=teorem]{lema}
+\declaretheorem[style=definition,sibling=teorem,qed=$\vartriangleleft$]{definicija}
+\declaretheorem[name=Primjer,style=definition]{example}
+
+%\newcommand{\citat}[2]{\begin{quotation}\textit{#1}\end{quotation}\vspace{-1em}\begin{flushright}---#2\end{flushright}}
+\newcommand{\citat}[2]{\begin{quotation}\textit{#1}\vspace{-1em}\begin{flushright}---#2\end{flushright}\end{quotation}}
+\newcommand{\primjer}[2]{%
+    \renewcommand\qedsymbol{$\vartriangleleft$}%
+    \begin{example}%
+        #1%
+    \end{example}%
+    \begin{proof}[Rješenje]%
+        #2%
+    \end{proof}%
+    \renewcommand\qedsymbol{$\square$}
+}
+
+\newcommand{\algoritam}[2]{%
+\begin{algorithm}
+\floatname{algorithm}{Algoritam}
+\caption{#1}
+\begin{algorithmic}
+#2
+\end{algorithmic}
+\end{algorithn}
+}
+
+\title{Miko --- jezik za mikološke simulacije}
+\author{Petar Pavlović i Mauro Raguzin}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\pagebreak
+
+\section{Opis jezika}
+Implementiran je jezik \textbf{Miko} koji omogućuje vođenje "pametnije" baze mikoloških uzoraka od recimo SQL baze. Pritom su implementirane specifične
+mogućnosti simulacije mutacije, selekcije i križanja korištenjem jednostavnih genetskih algoritama. Jezik je dizajniran da omogućuje laku manipulaciju
+numeričkim podacima te podacima koji predstavljaju uzorke gljiva s punim informacijama o pronalasku, tipu gljive te DNA. Implementacija se sastoji
+od interpretera ovog jezika napisanog u Pythonu.
+
+Jezik ima sljedeće mogućnosti:
+\begin{itemize}
+    \item Rad s listama svih ugrađenih osnovnih tipova: broj (svi su \verb|double| interno), string, bool kao i objekata vezanih za domenu;
+    \item Ugnježđene liste i aritmetiku nad njima;
+    \item Aritmetika s jedinicama tj.\ dimenzijama; dimenzionalni \textsl{mismatch} je greška pri izvođenju ako se nije mogla dokazati statički, ali 
+    interpreter uključuje i statički analizator tipova koji pokuša što je više moguće dokazati pri samom parsiranju i tako unaprijed izbjeći nemoguće
+    operacije poput množenja/dijeljenja dimenzionalnih veličina (koje su u ovoj domeni samo mase) ili zbrajanja dimenzijske i nedimenzijske veličine;
+    \item Konkateniranje stringova;
+    \item Korisnički definirane funkcije;
+    \item Ugrađene \verb|read| i \verb|write| funkcije koje (de)serijaliziraju iz/u JSON bilo koji objekt koji se koristi u programu;
+    \item \verb|print| funkcija s očitom namjenom, kao u Pythonu;
+    \item Standardnu \verb|for| petlju na jednoj varijabli;
+    \item Grananje kao u C-u;
+    \item Podrška za sve operatore (osim \verb|compound assignment|) iz C-a.
+\end{itemize}
+Jezik je \textsl{dynamically typed}, no sve se varijable moraju deklarirati prije uporabe; redeklaracije nisu dozvoljene te su svi objekti koje stvaramo
+imutabilni, osim \verb|Tree| objekata koji predstavljaju taksonomiju pojedine gljive. Ona se naime konstruira s default konstruktorom i onda se
+korištenjem dot-operatora (kao u C++-u) može pristupati pojedinim komponentama taksonomije i dodijeliti im stringove.
+
+Same gljive tj.\ uzorci su također objekti tipa \verb|Fungus| koji se konstruiraju s \verb|Fungus| konstruktorom; detalji su dani kroz komentare
+u izvornom kodu na \href{https://github.com/mraguzin/ip-projekt}{repozitoriju} ovog rada. Glavna funkcionalnost je rad s listama objekata gljiva
+koristeći tri genetska operatora: \textbf{selekcija}, \textbf{križanje} i \textbf{mutacija}. Križanje je binaran operator, ostali su unarni i rade
+poštujući neke globalne postavke koje korisnik može postavljati koristeći builtin \verb|setParam| funkciju.
+
+\section{Neki primjeri programa}
+U datoteci \verb|izoliranitest.py| unutar \verb|package| direktorija repozitorija se (na samom dnu) nalazi niz testnih programa jezika koji
+pokazuju neke funkcionalnosti. Primjerice, za vidjeti kako se radi s listama, jedinicama i genetskim operatorima u ovom jeziku, provjerite
+zadnja dva primjera u spomenutoj datoteci. Zadnji primjer tamo prikazuje kako bi se u osnovi ovakav jezik mogao koristiti u nekom stvarnom
+istraživačkom projektu (tj.\ koristeći te komponente jezika), iako bi naravno još trebalo poraditi na točnom značenju
+i djelovanju genetskih operatora te još nekih specifičnih
+funkcionalnosti koje bi konkretnim znanstvenicima olakšale svakodnevni rad i učinile ih produktivnijima.
+
+Napomena: postoji greška pri parsiranju mutacije u zadnjem primjeru, na tome još radimo i bit će najvjerojatnije ažurirano negdje do petka ujutro
+i sve bi onda trebalo raditi kako je zamišljeno.
+
+
+
+\end{document}
