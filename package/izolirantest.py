@@ -501,12 +501,14 @@ def listcheck(checker, *args): # rekurzivna provjera kompatibilnosti listi
         klen = None
         for alist in args:
             if klen is None:
-                if type(alist) == list:
+                #if type(alist) == list:
+                if alist ^ List:
                     klen = len(alist)
                 else:
                     klen = alist.get_list_length()
             else:
-                if type(alist) == list:
+                #if type(alist) == list:
+                if alist ^ List:
                     if klen != len(alist):
                         return False
                 else:
@@ -557,12 +559,14 @@ def listcheck_numberunits(*args):
         klen = None
         for alist in args:
             if klen is None:
-                if type(alist) == list:
+                #if type(alist) == list:
+                if alist ^ List:
                     klen = len(alist)
                 else:
                     klen = alist.get_list_length()
             else:
-                if type(alist) == list:
+                #if type(alist) == list:
+                if alist ^ List:
                     if klen != len(alist):
                         return False
                 else:
@@ -602,12 +606,14 @@ def units_check(*args):
     klen = None
     for alist in args:
             if klen is None:
-                if type(alist) == list:
+                #if type(alist) == list:
+                if alist ^ List:
                     klen = len(alist)
                 else:
                     klen = alist.get_list_length()
             else:
-                if type(alist) == list:
+                #if type(alist) == list:
+                if alist ^ List:
                     if klen != len(alist):
                         return False
                 else:
@@ -622,7 +628,9 @@ def units_check(*args):
 def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *rezultira* u listi; uočimo da to ne moraju direktno biti liste, već i drugi
     # izrazi za koje statički znamo da daju listu (tj. da im je vrijednost lista). Kada bismo imali neke operatore koji mogu "suziti" rezultat npr. iz
     # liste operanada dati nekakav "skalar" (OTOH operatori usporedbe < i > nad listama brojeva), onda bi ovo bila složenija funkcija.
-    if type(node) == list:
+
+    #if type(node) == list:
+    if node ^ List:
         return len(node)
     if node ^ Binary and (node.op ^ T.EQ or node.op ^ T.NEQ): # ipak imamo ovaj važan poseban slučaj
         return False 
@@ -1172,16 +1180,16 @@ class Prekid(NelokalnaKontrolaToka): pass
 def __printfun(*args):
     for arg in args:
         arg = arg.vrijednost()
-        if type(arg) == list:
-            tmp = '['
-            for a in arg:
-                tmp += __printfun(a) + ','
-            tmp += ']'
-            return tmp
-        elif type(arg) == str or type(arg) == bool:
-            return(str(arg))
-        else:
-            return arg.to_string()
+        # if type(arg) == list:
+        #     tmp = '['
+        #     for a in arg:
+        #         tmp += __printfun(a) + ','
+        #     tmp += ']'
+        #     return tmp
+        # elif type(arg) == str or type(arg) == bool:
+        #     return(str(arg))
+        #else:
+        return arg.to_string()
 
 def printfun(*args):
     print(__printfun(*args))
@@ -1384,7 +1392,7 @@ class Binary(AST):
         elif self.op ^ T.EQ:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) and type(left) != list:
+            if type(left) == type(right) and not (left ^ List):
                 return left == right
             elif type(left) == type(right): # riječ je o listi
                 if len(left) != len(right):
@@ -1398,7 +1406,7 @@ class Binary(AST):
         elif self.op ^ T.NEQ:
             left = self.left.vrijednost()
             right = self.right.vrijednost()
-            if type(left) == type(right) and type(left) != list:
+            if type(left) == type(right) and not (left ^ List):
                 return left != right
             elif type(left) == type(right): # riječ je o listi
                 if len(left) != len(right):
@@ -1441,7 +1449,7 @@ class Binary(AST):
 def eq_recursive(op1, op2):
     left = op1.vrijednost()
     right = op2.vrijednost()
-    if type(left) == type(right) and type(left) != list:
+    if type(left) == type(right) and not (left ^ List):
         return left == right 
     elif type(left) == type(right):
         if len(left) != len(right):
@@ -1483,7 +1491,7 @@ class Unary(AST):
             return mutant
         
         elif self.op ^ T.SELECTION:
-            if type(self.child.vrijednost()) != list:
+            if self.child.vrijednost() ^ List:
                 raise SemantičkaGreška('Selekcija moguća samo nad listama Fungus objekata')
             best = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno)
             mini = 0
@@ -1515,7 +1523,8 @@ class Unary(AST):
             if tmp ^ Number:
                 tmp.value = -tmp.value
                 return tmp
-            if type(tmp) == list:
+            #if type(tmp) == list:
+            if tmp ^ List:
                 for i in range(len(tmp)):
                     new = Unary(self.op, tmp[i])
                     tmp[i] = new.vrijednost() # rekurzija, mijenja listu
@@ -1523,7 +1532,8 @@ class Unary(AST):
             raise SemantičkaGreška('Negirati se mogu samo numeričke liste ili brojevi')
         elif self.op ^ T.NOT:
             tmp = self.child.vrijednost()
-            if type(tmp) == list:
+            #if type(tmp) == list:
+            if tmp ^ List:
                 for el in tmp:
                     new = Unary(self.op, el)
                     el = new.vrijednost()
@@ -1569,7 +1579,8 @@ class Nary(AST):
     def vrijednost(self):
         accum = copy.deepcopy(self.pairs[0][1].vrijednost())
         print(accum)
-        if type(accum) == list:
+        #if type(accum) == list:
+        if accum ^ List:
             unit = None
 
         elif accum ^ Literal and (type(accum.value) == str or type(accum.value) == bool):
@@ -1580,9 +1591,10 @@ class Nary(AST):
         for op,val in self.pairs[1:]:
             if op ^ T.MINUS:
                 tmp = val.vrijednost()
-                if (type(tmp) == list) ^ (type(accum) == list):
+                if (tmp ^ List) ^ (accum ^ List):
                     raise SemantičkaGreška('Lista se može oduzimati samo s listom')
-                if type(accum) == list:
+                #if type(accum) == list:
+                if accum ^ List:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
                     for i in range(len(accum)):
@@ -1601,9 +1613,9 @@ class Nary(AST):
         
             elif op ^ T.PLUS:
                 tmp = val.vrijednost()
-                if (type(tmp) == list) ^ (type(accum) == list):
+                if (tmp ^ List) ^ (accum ^ List):
                     raise SemantičkaGreška('Lista se može zbrajati samo s listom')
-                if type(accum) == list:
+                if accum ^ List:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
                     for i in range(len(accum)):
@@ -1624,9 +1636,9 @@ class Nary(AST):
 
             elif op ^ T.MUL:
                 tmp = val.vrijednost()
-                if (type(tmp) == list) ^ (type(accum) == list):
+                if (tmp ^ List) ^ (accum ^ List):
                     raise SemantičkaGreška('Lista se može množiti samo s listom')
-                if type(accum) == list:
+                if accum ^ List:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
                     for i in range(len(accum)):
@@ -1647,9 +1659,9 @@ class Nary(AST):
         
             elif op ^ T.DIV:
                 tmp = val.vrijednost()
-                if (type(tmp) == list) ^ (type(accum) == list):
+                if (tmp ^ List) ^ (accum ^ List):
                     raise SemantičkaGreška('Lista se može dijeliti samo s listom')
-                if type(accum) == list:
+                if accum ^ List:
                     if len(tmp) != len(accum):
                         raise SemantičkaGreška('Aritmetika nad listama nejednake duljine')
                     for i in range(len(accum)):
@@ -1724,7 +1736,7 @@ class Assignment(AST):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
         if self.variable ^ T.IME:
             tmp = self.expression.vrijednost()
-            if type(tmp) == list or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
+            if tmp ^ List or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
             #if tmp ^ list or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
                 rt.okolina[-1][self.variable] = self.expression.vrijednost()
             elif tmp ^ Edibility:
@@ -2013,9 +2025,11 @@ class ConstructorCall(AST):
             # nema konvertirajućeg konstruktora
             args = [arg.vrijednost() for arg in self.arguments]
             date = None
-            if type(args[0]) != str:
+            #if type(args[0]) != str:
+            if  not (args[0] ^ Literal and type(args[0].value) == str):
                 raise SemantičkaGreška('Prvi argument konstruktora za Fungus mora biti ime')
-            if type(args[1]) != str:
+            #if type(args[1]) != str:
+            if not (args[1] ^ Literal and type(args[1].value) == str):
                 raise SemantičkaGreška('Drugi argument konstruktora za Fungus mora biti latinsko ime')
             if not args[2] ^ DNA:
                 raise SemantičkaGreška('Treći argument konstruktora za Fungus mora biti DNA')
@@ -2031,7 +2045,14 @@ class ConstructorCall(AST):
             return Fungus(args[0], args[1], args[2], args[3], date)
         
         elif self.type ^ T.TREE:
-            return Tree() # taksonomija se samo "defaultno" konstruira tj. dobivamo ne baš korisan objekt u kojem se onda moraju postavljati komponente
+            #    species: ...
+    # genus: ...
+    # family: ...
+    # order: ...
+    # klasa: ...
+    # phylum: ...
+    # kingdom: ...
+            return Tree(nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno ) # taksonomija se samo "defaultno" konstruira tj. dobivamo ne baš korisan objekt u kojem se onda moraju postavljati komponente
         # koristeći . operator
         elif self.type ^ T.EDIBILITY:
             return Edibility(self.arguments[0])
@@ -2061,18 +2082,14 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
         return self.latin != other.latin
 
     def to_string(self):
-        tmp = 'Name: ' + self.name + '\n'
-        +     'Latin name: ' + self.latin + '\n'
-        +     'DNA: ' + self.dna.to_string() + '\n'
-        +     'Taxonomy: ' + self.taxonomy.to_string() + '\n'
-        +     'Time found: ' + self.timestamp.to_string()
+        tmp = 'Name: ' + self.name.value + '\n' +     'Latin name: ' + self.latin.value + '\n' +     'DNA: ' + self.dna.to_string() + '\n'+     'Taxonomy: ' + self.taxonomy.to_string() + '\n'+     'Time found: ' + self.timestamp.to_string()
         return tmp
     
     def get_list_length(self):
         return None
 
 #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
-class Tree:
+class Tree(AST):
     species: ...
     genus: ...
     family: ...
@@ -2106,7 +2123,7 @@ class Tree:
         for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
             val = getattr(self, prop, None)
             if val:
-                tmp += prop + ': ' + val + '\n'
+                tmp += prop + ': ' + val.value + '\n'
         return tmp
 
 class Date(AST):
@@ -2136,7 +2153,7 @@ class Date(AST):
         return None
     
     def to_string(self):
-        return self.date[0] + '.' + self.date[1] + '.' + self.date[2] + '.'
+        return str(self.date[0]) + '.' + str(self.date[1]) + '.' + str(self.date[2]) + '.'
 
 class DateTime(Date):
     hours: ...
@@ -2169,7 +2186,7 @@ class DateTime(Date):
     
     def to_string(self):
         tmp = super().to_string()
-        tmp += ' ' + self.hours + ':' + self.minutes + ':' + self.seconds
+        tmp += ' ' + str(self.hours) + ':' + str(self.minutes) + ':' + str(self.seconds)
         return tmp
     
 class DNA(AST):
@@ -2200,9 +2217,19 @@ class DNA(AST):
 class List(DotList):
     def __iter__(self):
         return self.elements.__iter__()
+    
+    def __getitem__(self, x):
+        return self.elements[x]
+    
+    def __setitem__(self, x, val):
+        self.elements[x] = val
+    
+    def __len__(self):
+        return len(self.elements)
 
     def vrijednost(self):
-        return self.elements
+        #return self.elements
+        return self
     
     def get_list_length(self):
         return len(self.elements)
@@ -2359,6 +2386,7 @@ let tax := Tree();
 tax.phyl := "tkozna";
 let fung1 := Fungus("naziv", "latinski", dna1, tax);
 let fung2 := Fungus("naziv2", "latinski2", dna2, tax);
+print(fung1);
 """
 
 # P(program4)
