@@ -67,7 +67,7 @@ class T(TipoviTokena):
     class STRINGTYPE(Token): # ovo stavljamo ovdje radi mogućnosti provjera konstruktorskih argumenata
         literal = 'String'
         def validate_call(self, *args):
-            if len(args) != 1 or not is_stringetic(args[0]) or is_list(args[0]):
+            if len(args) != 1 or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor String-a traži string izraz')
             return True
     class TRUE(Token):
@@ -81,13 +81,14 @@ class T(TipoviTokena):
     class NUMBER(Token):
         literal = 'Number'
         def validate_call(self, *args):
-            if len(args) != 1 or not is_arithmetic(args[0]) or is_list(args[0]):
+            #if len(args) != 1 or not is_arithmetic(args[0]) or is_list(args[0]):
+            if len(args) != 1 or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor Number-a traži brojevni izraz')
             return True
     class BOOL(Token):
         literal = 'Bool'
         def validate_call(self, *args):
-            if len(args) != 1 or not is_boolean(args[0]) or is_list(args[0]):
+            if len(args) != 1 or is_list(args[0]):
                 raise SemantičkaGreška('Konstruktor Bool-a traži bool izraz')
             return True
     class FUNGUS(Token):
@@ -124,17 +125,22 @@ class T(TipoviTokena):
     class DATETIME(Token):
         literal = 'Datetime'
         def validate_call(self, *args):
-            if len(args) >= 3: # želimo dopustiti da se datum konstruira iz komponenti, koje radi udobnosti mogu biti što god se može interpretirati kao broj
-                if not is_arithmetic(args[0]) or not is_arithmetic(args[1]) or not is_arithmetic(args[2]):
-                    raise SemantičkaGreška('Datum se konstruira od bar 3 komponente')
-                if len(args) >= 5:
-                    if not is_arithmetic(args[3]) or not is_arithmetic(args[4]):
-                        raise SemantičkaGreška('Vrijeme zahtijeva dva broja')
-                return True
-            
-            if len(args) != 1 or not is_datetime(args[0]) or is_list(args[0]):
-                raise SemantičkaGreška('Konstruktor Datetime-a zahtijeva literal datuma ili datuma+vremena')
+            if len(args) < 3:
+                return False
+            if len(args) > 5:
+                return False
             return True
+            # if len(args) >= 3: # želimo dopustiti da se datum konstruira iz komponenti, koje radi udobnosti mogu biti što god se može interpretirati kao broj
+            #     if not is_arithmetic(args[0]) or not is_arithmetic(args[1]) or not is_arithmetic(args[2]):
+            #         raise SemantičkaGreška('Datum se konstruira od bar 3 komponente')
+            #     if len(args) >= 5:
+            #         if not is_arithmetic(args[3]) or not is_arithmetic(args[4]):
+            #             raise SemantičkaGreška('Vrijeme zahtijeva dva broja')
+            #     return True
+            
+            # if len(args) != 1 or not is_datetime(args[0]) or is_list(args[0]):
+            #     raise SemantičkaGreška('Konstruktor Datetime-a zahtijeva literal datuma ili datuma+vremena')
+            # return True
     class CONTINUE(Token):
         literal = 'continue'
         def izvrši(self):
@@ -1022,7 +1028,7 @@ class P(Parser):
 
     # cons -> type OTV args? ZATV   # konstruktori za builtin tipove
     # type -> (STRINGTYPE | NUMBER | BOOL | FUNGUS | TREE | EDIBILITY | DNA | DATETIME)
-    def bot(p,dotted=False): # dotted je za kada smo u . list ili u parametarskoj listi pri definiciji funkcije
+    def bot(p,dotted=False): # dotted je za kada smo u . listi
         if var := p > T.IME:
             if dotted:
                 p >> T.IME
@@ -1794,14 +1800,15 @@ class ConstructorCall(AST):
         self.vrijednost()
 
     def vrijednost(self):
-        true = True
-        false = False
+        true = Literal(True)
+        false = Literal(False)
                         
         if self.type ^ T.BOOL:
             if len(self.arguments) != 1:
                 raise SemantičkaGreška('Konstruktor bool-a prima jedan argument')
             arg = self.arguments[0].vrijednost()
-            if type(arg) == bool:
+            #if type(arg) == bool:
+            if type(arg) == Literal and type(arg.value) == bool:
                 if arg:
                     return true
                 else:
@@ -1811,7 +1818,7 @@ class ConstructorCall(AST):
                     return false
                 else:
                     return true
-            elif type(arg) == str: # konverzija String->Bool: False akko duljine 0
+            elif type(arg) == Literal and type(arg.value) == str: # konverzija String->Bool: False akko duljine 0
                 if len(arg) == 0:
                     return false
                 else:
@@ -1828,15 +1835,15 @@ class ConstructorCall(AST):
             if len(self.arguments) != 1:
                 raise SemantičkaGreška('Konstruktor broja prima jedan argument')
             arg = self.arguments[0].vrijednost()
-            if type(arg) == bool: # konverzija Bool->Number: 1 ako True, inače 0
+            if type(arg) == Literal and type(arg.value) == bool: # konverzija Bool->Number: 1 ako True, inače 0
                 if arg:
                     return Number(1, None)
                 else:
                     return Number(0, None)
             elif arg ^ Number:
                 return arg
-            elif type(arg) == str: # konverzija String->Number: koristimo Pythonovu semantiku
-                tmp = float(arg)
+            elif type(arg) == Literal and type(arg.value) == str: # konverzija String->Number: koristimo Pythonovu semantiku
+                tmp = float(arg.value)
                 return Number(tmp, None)
             else:
                 raise SemantičkaGreška('Nepodržana konverzija iz tipa ' + str(type(arg)) + ' u tip ' + str(self.type))
@@ -1845,7 +1852,7 @@ class ConstructorCall(AST):
             if len(self.arguments) != 1:
                 raise SemantičkaGreška('Konstruktor stringa prima jedan argument')
             arg = self.arguments[0].vrijednost()
-            if type(arg) == bool: # konverzija Bool->String: daje 'True' za istinu, a inače prazan string, kako bi bilo konzistentno s obrnutom konverzijom
+            if type(arg) == Literal and type(arg.value) == bool: # konverzija Bool->String: daje 'True' za istinu, a inače prazan string, kako bi bilo konzistentno s obrnutom konverzijom
                 if arg:
                     return 'True'
                 else:
@@ -1855,7 +1862,7 @@ class ConstructorCall(AST):
                 if arg.unit:
                     tmp += ' ' + arg.unit.sadržaj
                 return tmp
-            elif type(arg) == str:
+            elif type(arg) == Literal and type(arg.value) == str:
                 return arg
             else:
                 return arg.to_string()
@@ -1865,39 +1872,46 @@ class ConstructorCall(AST):
                 day = self.arguments[0].vrijednost()
                 month = self.arguments[0].vrijednost()
                 year = self.arguments[0].vrijednost()
-                for el in [day, month, year]:
+                conved = [day,month,year]
+                origs = [day, month, year]
+                #for el in [day, month, year]:
+                for i in range(3):
+                    el = origs[i]
                     try:
-                        if type(el) == str:
-                            el = int(el)
+                        if type(el) == Literal and type(el.value) == str:
+                            conved[i] = int(el.value)
                         elif el ^ Number:
-                            el = int(el.value)
+                            conved[i] = int(el.value)
                         else:
                             raise SemantičkaGreška('Nepodržan tip za dan/mjesec/godinu')
                     except: raise SemantičkaGreška('Nemoguće konstruirati datum iz danih argumenata')
                 if len(self.arguments) > 3:
                     minutes = 0
                     seconds = 0
-                    for el in [comp.vrijednost() for comp in self.arguments[3:]]:
+                    time = [0,0]
+                    #for el in [comp.vrijednost() for comp in self.arguments[3:]]:
+                    for i in range(len(self.arguments)-3):
+                        el = self.arguments[3+i].vrijednost()
                         try:
-                            if type(el) == str:
-                                el = int(el)
+                            if type(el) == Literal and type(el.value) == str:
+                                time[i] = int(el.value)
                             elif el ^ Number:
-                                el = int(el.value)
+                                time[i] = int(el.value)
                             else:
                                 raise SemantičkaGreška('Nepodržan tip za vrijeme')
                         except: raise SemantičkaGreška('Nemoguće konstruirati vrijeme iz danih argumenata')
-                    hours = el[0]
-                    if len(el) > 1:
-                        minutes = el[1]
-                    if len(el) > 2:
-                        seconds = el[2]
-                    if len(el) > 3:
+                    hours = time[0]
+                    if len(time) > 1:
+                        minutes = time[1]
+                    if len(time) > 2:
+                        seconds = time[2]
+                    if len(time) > 3:
                         raise SemantičkaGreška('Konstrukcija vremena uzima najviše tri argumenta: sati, minute i sekunde')
-                    tmp = DateTime([day, month, year], hours, minutes, seconds)
+                    tmp = DateTime(conved, hours, minutes, seconds)
                     tmp.validiraj()
                     return tmp
                 else:
-                    tmp = Date([day, month, year])
+                    tmp = Date(conved)
                     tmp.validiraj()
                     return tmp
             else:
@@ -2223,6 +2237,11 @@ let svec2 := ["Šta", "će", "ti to"];
 print(svec1+svec2);
 """
 
+program14 = """
+let ne := Number("14.22"); # konvertirajući konstruktor
+print(ne);
+"""
+
 # P(program4)
 # P(program5)
 # P(program7)
@@ -2236,3 +2255,5 @@ p12 = P(program12)
 p12.izvrši()
 p13 = P(program13)
 p13.izvrši()
+p14 = P(program14)
+p14.izvrši()
