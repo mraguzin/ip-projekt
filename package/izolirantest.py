@@ -212,12 +212,12 @@ class T(TipoviTokena):
         literal = 'read'
         def izvrši(self, *args):
             arg = args[0].vrijednost()
-            if type(arg) != str:
+            if not (arg ^ Literal and type(arg.value) == str):
                 raise SemantičkaGreška('Očekivan filename string')
-            file = open(arg, 'r')
+            file = open(arg.value, 'r')
             lines = ''
             try:
-                lines = file.readlines()
+                lines = file.read()
             except: raise SemantičkaGreška('Nije uspjelo otvaranje ' + arg)
             try:
                 return jsonpickle.decode(lines)
@@ -231,9 +231,9 @@ class T(TipoviTokena):
         literal = 'write'
         def izvrši(self, *args):
             fname = args[0].vrijednost()
-            if type(fname) != str:
+            if not (fname ^ Literal and type(fname.value) == str):
                 raise SemantičkaGreška('Prvi argument od write() treba biti filename string')
-            file = open(fname, 'w')
+            file = open(fname.value, 'w')
             things = []
             for arg in args[1:]:
                 things.append(arg.vrijednost())
@@ -1322,6 +1322,46 @@ class Ternary(AST):
             return self.middle.vrijednost()
         else:
             return self.right.vrijednost()
+        
+#SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
+class Tree(AST):
+    species: ...
+    genus: ...
+    family: ...
+    order: ...
+    klasa: ...
+    phylum: ...
+    kingdom: ...
+
+    def vrijednost(self):
+        return self
+    
+    def get_list_length(self):
+        return None
+
+    def __eq__(self, other):
+        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
+            if hasattr(self, prop) ^ hasattr(other, prop):
+                return False
+            elif hasattr(self, prop) and hasattr(other, prop):
+                val1 = getattr(self, prop, None)
+                val2 = getattr(other, prop, None)
+                if val1 != val2:
+                    return False
+        return True
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def to_string(self):
+        tmp = ''
+        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
+            val = getattr(self, prop, None)
+            if val:
+                tmp += prop + ': ' + val.value + '\n'
+        return tmp
+
+notree = Tree(nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno)
 
 class Binary(AST):
     op: ...
@@ -1366,7 +1406,10 @@ class Binary(AST):
                 for i in range (longer - shorter):
                     gen_code.append(lista[shorter + i])
             newdna = DNA(gen_code)
-            return Fungus('nema', 'non curat', newdna, nenavedeno, nenavedeno) # nećemo se zamarati ovim ostalim atributima...
+
+            now = datetime.datetime.now()
+            return Fungus(Literal('nema'), Literal('non curat'), newdna, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
+         # nećemo se zamarati ovim ostalim atributima...
             
         elif self.op ^ T.AND:
             # nema listi
@@ -1475,7 +1518,8 @@ class Unary(AST):
         if self.op ^ T.MUTATION:
             if not self.child.vrijednost() ^ Fungus:
                 raise SemantičkaGreška('Mutacija zasad moguća samo nad jednom gljivom tj. Fungus objektom')
-            mutant = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno)
+            now = datetime.datetime.now()
+            mutant = Fungus(Literal('nema'), Literal('n/a'), nenavedeno, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
             gen_code = []
             child = self.child.vrijednost()
             for i in range (len(child.dna.bases)):
@@ -1494,7 +1538,7 @@ class Unary(AST):
             if not self.child.vrijednost() ^ List:
                 raise SemantičkaGreška('Selekcija moguća samo nad listama Fungus objekata')
             now = datetime.datetime.now()
-            best = Fungus(nenavedeno, nenavedeno, nenavedeno, nenavedeno, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
+            best = Fungus(Literal('nema'), Literal('n/a'), nenavedeno, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
             mini = 0
             child = self.child.vrijednost()
             for fung in child:
@@ -2089,43 +2133,7 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
     def get_list_length(self):
         return None
 
-#SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
-class Tree(AST):
-    species: ...
-    genus: ...
-    family: ...
-    order: ...
-    klasa: ...
-    phylum: ...
-    kingdom: ...
 
-    def vrijednost(self):
-        return self
-    
-    def get_list_length(self):
-        return None
-
-    def __eq__(self, other):
-        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
-            if hasattr(self, prop) ^ hasattr(other, prop):
-                return False
-            elif hasattr(self, prop) and hasattr(other, prop):
-                val1 = getattr(self, prop, None)
-                val2 = getattr(other, prop, None)
-                if val1 != val2:
-                    return False
-        return True
-    
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def to_string(self):
-        tmp = ''
-        for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
-            val = getattr(self, prop, None)
-            if val:
-                tmp += prop + ': ' + val.value + '\n'
-        return tmp
 
 class Date(AST):
     date: ... #(day,month,year) triple
@@ -2405,21 +2413,15 @@ let mutirana := ⥼ gljiva;
 let mutirana2:= mutate mutirana; # mutate je alias za genetski operator mutiranja ⥼
 let dijete := mutirana ⊗ mutirana2;
 let najbolja := [gljiva, mutirana, mutirana2]⊙;
+write("dat.txt", najbolja);
+write("dat2.txt", "neki string");
+write("dat3.txt", [najbolja, gljiva]);
 print(najbolja);
 """
 
-program0 = """
-let dna := DNA(ATCGAGCCGGGT); # naravno, ovo je sve izmišljeno za demo svrhe
-let tax := Tree(); # uspostavljamo  taksonomiju za konkretnu gljivu
-tax.king := "Fungi"; # ok, očekivano...
-tax.class := "Agaricomycetes";
-tax.ord := "Agaricales";
-tax.fam := "Amanitaceae";
-tax.gen := "Amanita";
-tax.spec := "A. muscaria";
-
-let gljiva0 := Fungus("muhara", "Amanita muscaria", dna, tax); # datum će biti dodijeljen automatski (trenutni)
-⥼ gljiva0;
+program17 = """
+let učitano := read("dat3.txt");
+print(učitano);
 """
 
 #alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
@@ -2441,6 +2443,7 @@ p14 = P(program14)
 p14.izvrši()
 p15 = P(program15)
 p15.izvrši()
-p0 = P(program0)
+#p0 = P(program0)
 p16 = P(program16)
-p16.izvrši()
+#p16.izvrši()
+P(program17).izvrši()

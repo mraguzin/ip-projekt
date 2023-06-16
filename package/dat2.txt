@@ -1,0 +1,1 @@
+{"py/object": "__main__.Literal", "value": "neki string", "_po\u010detak": {"py/tuple": [16, 19]}, "_kraj": {"py/tuple": [16, 32]}}
