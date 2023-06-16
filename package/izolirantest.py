@@ -190,7 +190,6 @@ class T(TipoviTokena):
     class DATUM(Token):
         def vrijednost(self):
             try:
-                print(self.sadržaj)
                 return [int(dio) for dio in self.sadržaj.split('.')[:-1]]
             except ValueError:
                 raise SemantičkaGreška('Krivi format datuma')
@@ -843,7 +842,6 @@ class P(Parser):
         left = p.expr0()
         if p >= T.ASGN:
             # imamo pridruživanje, pa lijevo smiju biti samo: imena, dot-liste
-            print(type(left))
             if not (left ^ T.IME or left ^ DotList):
                 raise SemantičkaGreška('Pridruživati možete samo varijabli ili nekom članu složenijeg objekta')
             right = p.expr()
@@ -1052,9 +1050,6 @@ class P(Parser):
             if var in rt.funtab:
                 return p.call()
             else:
-                print('ime je sada=',var)
-                for whatever in rt.symtab[-1]:
-                    print(whatever)
                 raise SintaksnaGreška('Ime ' + var.sadržaj + ' nije viđeno do sada')
         elif p > {T.READ, T.WRITE, T.SETPARAM}:
             return p.call()
@@ -1194,22 +1189,26 @@ def __printfun(*args):
 def printfun(*args):
     print(__printfun(*args))
 
+def init_env():
+    rt.symtab.pop() # očisti stog
+    rt.symtab = list()
+    rt.symtab.append(Memorija())
+    rt.okolina = rt.symtab # tu držimo vrijednosti vidljivih varijabli; na početku su to samo globalne, a svaki pojedini poziv stvara okvir tj. nadodaje
+    # stvari koje onda skida kada završi s izvršavanjem pozvane funkcije
+    rt.params = Memorija() # tu spremamo parametre postavljene sa setParams; ovdje želimo postaviti neke smislene defaulte koje koriste genetski
+    # operatori
+    rt.params['preferparents'] = (0,0)
+    rt.params['dist'] = 'gauss'
+    rt.params['mean'] = 0.0
+    rt.params['stddev'] = 0.2
+
 class Program(AST):
     statements: ...
     functions: ...
 
-    def izvrši(self):
-        rt.symtab.pop() # očisti stog
-        rt.symtab = list()
-        rt.symtab.append(Memorija())
-        rt.okolina = rt.symtab # tu držimo vrijednosti vidljivih varijabli; na početku su to samo globalne, a svaki pojedini poziv stvara okvir tj. nadodaje
-        # stvari koje onda skida kada završi s izvršavanjem pozvane funkcije
-        rt.params = Memorija() # tu spremamo parametre postavljene sa setParams; ovdje želimo postaviti neke smislene defaulte koje koriste genetski
-        # operatori
-        rt.params['preferparents'] = (0,0)
-        rt.params['dist'] = 'gauss'
-        rt.params['mean'] = 0.0
-        rt.params['stddev'] = 0.2
+    def izvrši(self, interactive=False):
+        if not interactive:
+            init_env()
 
         for stmt in self.statements:
             stmt.izvrši()
@@ -1595,8 +1594,6 @@ def unit_conv(val, src, dest):
         return val
     if src.sadržaj == dest.sadržaj:
         return val
-    print('src', src.sadržaj)
-    print('dest', dest.sadržaj)
     if (src.sadržaj == 'mg') and (dest.sadržaj == 'g'):
         return val / 1000
     if (src.sadržaj == 'g') and (dest.sadržaj == 'mg'):
@@ -1623,7 +1620,6 @@ class Nary(AST):
     
     def vrijednost(self):
         accum = copy.deepcopy(self.pairs[0][1].vrijednost())
-        print(accum)
         #if type(accum) == list:
         if accum ^ List:
             unit = None
@@ -1666,10 +1662,8 @@ class Nary(AST):
                     for i in range(len(accum)):
                         el1 = accum[i]
                         el2 = tmp[i]
-                        print('el 1 el2:',el1,el2)
                         new = Nary([[op,el1], [op,el2]])
                         accum[i] = new.vrijednost() # rekurzija, mijenja accum
-                        print('new nary')
                 #elif accum ^ Number and tmp ^ Number or type(accum) == type(tmp) == str:
                 elif type(accum) == Number and type(tmp) == Number or type(accum) == type(tmp) == Literal:
                     if type(tmp) != Literal and (unit and not tmp.unit or not unit and tmp.unit):
@@ -1823,10 +1817,6 @@ class Number(AST,object):
     unit: ...
 
     def __add__(self, other):
-        if other.unit:
-            print('other unit:', other.unit.sadržaj)
-        if self.unit:
-            print('this unit:', self.unit.sadržaj)
         val = self.value + unit_conv(other.value, other.unit, self.unit)
         return Number(val, self.unit)
     
