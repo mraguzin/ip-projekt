@@ -69,7 +69,7 @@ class T(TipoviTokena):
         literal = 'String'
         def validate_call(self, *args):
             if len(args) != 1 or is_list(args[0]):
-                raise SemantičkaGreška('Konstruktor String-a traži string izraz')
+                raise SemantičkaGreška('Konstruktor String-a traži izraz')
             return True
     class TRUE(Token):
         literal = 'true'
@@ -220,7 +220,7 @@ class T(TipoviTokena):
                 lines = file.read()
             except: raise SemantičkaGreška('Nije uspjelo otvaranje ' + arg)
             try:
-                return jsonpickle.decode(lines)
+                return jsonpickle.decode(lines).vrijednost()
             except: raise SemantičkaGreška('Parsiranje JSON-a nije uspjelo')
         def validate_call(self, *args):
             if len(args) != 1:
@@ -1189,7 +1189,7 @@ def __printfun(*args):
         # elif type(arg) == str or type(arg) == bool:
         #     return(str(arg))
         #else:
-        return arg.to_string()
+        return str(arg)
 
 def printfun(*args):
     print(__printfun(*args))
@@ -1324,7 +1324,7 @@ class Ternary(AST):
             return self.right.vrijednost()
         
 #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
-class Tree(AST):
+class Tree(AST,object):
     species: ...
     genus: ...
     family: ...
@@ -1353,7 +1353,7 @@ class Tree(AST):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def to_string(self):
+    def __str__(self):
         tmp = ''
         for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
             val = getattr(self, prop, None)
@@ -1727,7 +1727,7 @@ class Nary(AST):
                 
         return accum
 
-class DotList(AST):
+class DotList(AST,object):
     elements: ...
 #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king'
     def vrijednost(self):
@@ -1818,7 +1818,7 @@ class Assignment(AST):
             else:
                 raise SemantičkaGreška('Ilegalni element taksonomije')
 
-class Number(AST):
+class Number(AST,object):
     value: ...
     unit: ...
 
@@ -1882,13 +1882,13 @@ class Number(AST):
     def get_list_length(self):
         return None
     
-    def to_string(self):
+    def __str__(self):
         tmp = str(self.value)
         if self.unit:
             tmp += ' ' + self.unit.sadržaj
         return tmp
 
-class Literal(AST):
+class Literal(AST,object):
     value: ...
 
     def izvrši(self):
@@ -1932,7 +1932,7 @@ class Literal(AST):
     def get_list_length(self):
         return None
         
-    def to_string(self):
+    def __str__(self):
         return str(self.value)
     
 
@@ -2011,7 +2011,7 @@ class ConstructorCall(AST):
             elif type(arg) == Literal and type(arg.value) == str:
                 return arg
             else:
-                return arg.to_string()
+                return str(arg)
             
         elif self.type ^ T.DATETIME:
             if len(self.arguments) >= 3:
@@ -2108,7 +2108,7 @@ class ConstructorCall(AST):
     def get_list_length(self):
         return None
     
-class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser konstruira već služi samo interpreteru; koristimo AST baznu klasu jer pruža neke
+class Fungus(object): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser konstruira već služi samo interpreteru; koristimo AST baznu klasu jer pruža neke
     # zgodne defaulte
     # imamo bar 4 argumenta: # mora se navesti ime,latinsko ime,dna,taksonomija; opcionalno je još i Datetime pronalaska/unosa uzorka
     name: ...
@@ -2116,6 +2116,16 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
     dna: ...
     taxonomy: ...
     timestamp: ...
+
+    def __init__(self, n, l, d, t, ts):
+        self.name = n
+        self.latin = l
+        self.dna = d
+        self.taxonomy = t
+        self.timestamp = ts
+
+    def __xor__(self, other):
+        return type(self) == other
 
     def vrijednost(self):
         return self
@@ -2126,8 +2136,8 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
     def __ne__(self, other):
         return self.latin != other.latin
 
-    def to_string(self):
-        tmp = 'Name: ' + self.name.value + '\n' +     'Latin name: ' + self.latin.value + '\n' +     'DNA: ' + self.dna.to_string() + '\n'+     'Taxonomy: ' + self.taxonomy.to_string() + '\n'+     'Time found: ' + self.timestamp.to_string()
+    def __str__(self):
+        tmp = 'Name: ' + self.name.value + '\n' +     'Latin name: ' + self.latin.value + '\n' +     'DNA: ' + str(self.dna) + '\n'+     'Taxonomy: ' + str(self.taxonomy) + '\n'+     'Time found: ' + str(self.timestamp)
         return tmp
     
     def get_list_length(self):
@@ -2135,7 +2145,7 @@ class Fungus(AST): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser kon
 
 
 
-class Date(AST):
+class Date(AST,object):
     date: ... #(day,month,year) triple
 
     def __eq__(self, other):
@@ -2161,7 +2171,7 @@ class Date(AST):
     def get_list_length(self):
         return None
     
-    def to_string(self):
+    def __str__(self):
         return str(self.date[0]) + '.' + str(self.date[1]) + '.' + str(self.date[2]) + '.'
 
 class DateTime(Date):
@@ -2193,12 +2203,12 @@ class DateTime(Date):
     def get_list_length(self):
         return None
     
-    def to_string(self):
-        tmp = super().to_string()
+    def __str__(self):
+        tmp = super().__str__()
         tmp += ' ' + str(self.hours) + ':' + str(self.minutes) + ':' + str(self.seconds)
         return tmp
     
-class DNA(AST):
+class DNA(AST,object):
     bases: ...
 
     def __eq__(self, other):
@@ -2214,7 +2224,7 @@ class DNA(AST):
     def vrijednost(self):
         return self
     
-    def to_string(self):
+    def __str__(self):
         tmp = ''
         for b in self.bases:
             tmp += b
@@ -2238,19 +2248,23 @@ class List(DotList):
 
     def vrijednost(self):
         #return self.elements
-        return self
+        tmp = []
+        for el in self.elements:
+            tmp.append(el.vrijednost())
+        #return self
+        return List(tmp)
     
     def get_list_length(self):
         return len(self.elements)
     
-    def to_string(self):
+    def __str__(self):
         tmp = '['
         for el in self.elements:
-            tmp += el.to_string() + ', '
+            tmp += str(el) + ', '
         tmp += ']'
         return tmp
 
-class Edibility(AST):
+class Edibility(AST,object):
     kind: ...
 
     def __eq__(self, other):
@@ -2265,7 +2279,7 @@ class Edibility(AST):
     def get_list_length(self):
         return None
     
-    def to_string(self):
+    def __str__(self):
         return self.kind.sadržaj
 
 class Declaration(AST):
@@ -2426,11 +2440,11 @@ print(učitano);
 
 #alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
     #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #
-# P(program4)
-# P(program5)
-# P(program7)
-# p8 = P(program8)
-#p8.izvrši()
+P(program4)
+P(program5)
+P(program7)
+p8 = P(program8)
+p8.izvrši()
 P(program9).izvrši()
 P(program10).izvrši()
 p11 = P(program11)
@@ -2445,5 +2459,5 @@ p15 = P(program15)
 p15.izvrši()
 #p0 = P(program0)
 p16 = P(program16)
-#p16.izvrši()
+p16.izvrši()
 P(program17).izvrši()
