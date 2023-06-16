@@ -637,14 +637,13 @@ def is_list(node): # ovo služi generičkoj provjeri da neki dio AST-a izraza *r
 
 class P(Parser):
     def start(p):
-        rt.symtab = list() # želimo leksički scopeane varijable tj. funkcijski lokalne varijable su vidljive samo unutar funkcije ispod pozicije deklariranja
-        # i ne smiju se opetovano deklarirati u istoj funkciji; pri izlasku iz funkcije, parser zaboravlja sve njene lokalne varijable. Zato koristimo stog
-        rt.funtab = Memorija() # tu držimo samo (globalne) funkcije
-        rt.symtab.append(Memorija()) # globalni scope
-        # dodajemo builtin print funkciju s očitim ponašanjem
-        #fakeprint = T.IME('print')
-        #rt.funtab['print'] = Function('print', [], printfun)
-        rt.funtab['print'] = printfun
+        if not initialised:
+            rt.symtab = list() # želimo leksički scopeane varijable tj. funkcijski lokalne varijable su vidljive samo unutar funkcije ispod pozicije deklariranja
+            # i ne smiju se opetovano deklarirati u istoj funkciji; pri izlasku iz funkcije, parser zaboravlja sve njene lokalne varijable. Zato koristimo stog
+            rt.funtab = Memorija() # tu držimo samo (globalne) funkcije
+            rt.symtab.append(Memorija()) # globalni scope
+            # dodajemo builtin print funkciju s očitim ponašanjem
+            rt.funtab['print'] = printfun
 
         functions = []
         statements = []
