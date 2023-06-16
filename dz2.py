@@ -28,8 +28,8 @@ imamo tipove: string, number, bool, fungus, tree, edibility, dna, datetime
 * operator= je overloadan na prirodne načine za: string, number, bool, fungus (shallow), tree (deep copy), edibility, dna (shallow),
 datetime (deep copy)
 
-*FILE I/O: builtin funkcije read() i write(), praktički kao u Pythonu; read('datoteka') čita sve iz dane tekstualne datoteke i deserijalizira u
-naše interne strukture svakog od mogućih tipova. write('datoteka', obj1, obj2,...) serijalizira objekt 'obj' u danu
+*FILE I/O: builtin funkcije read() i write(), praktički kao u Pythonu; read("datoteka") čita sve iz dane tekstualne datoteke i deserijalizira u
+naše interne strukture svakog od mogućih tipova. write("datoteka", obj1, obj2,...) serijalizira objekt 'obj' u danu
 tekstualnu datoteku (stvara ju, briše ako postoji). Uočiti da je ovo jedina "funkcija" koja prima varijabilni broj argumenata, t.d. je moguće
 lako spremiti cijeli niz objekata.
 
