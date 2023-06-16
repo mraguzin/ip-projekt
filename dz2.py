@@ -203,7 +203,7 @@ class T(TipoviTokena):
     # Sami parametri nisu hardkodirani u jeziku ali neki se očekuju pri izvršavanju genetskih operacija. Parametri se predaju kao param:val parovi
     #  i interpreter je dužan nositi se s njima kako spada. Npr. setParam("param1:")
         literal = 'setParam'
-        def izvrši(self, *args):
+        def izvrši(self, args):
             for key,val in args.items():
                 rt.params[key.sadržaj] = val.vrijednost()
             return None
@@ -212,7 +212,7 @@ class T(TipoviTokena):
         literal = 'read'
         def izvrši(self, *args):
             arg = args[0].vrijednost()
-            if type(arg) != str:
+            if not (arg ^ Literal and type(arg.value) == str):
                 raise SemantičkaGreška('Očekivan filename string')
             file = open(arg, 'r')
             lines = ''
@@ -231,7 +231,7 @@ class T(TipoviTokena):
         literal = 'write'
         def izvrši(self, *args):
             fname = args[0].vrijednost()
-            if type(fname) != str:
+            if not (fname ^ Literal and type(fname.value) == str):
                 raise SemantičkaGreška('Prvi argument od write() treba biti filename string')
             file = open(fname, 'w')
             things = []
