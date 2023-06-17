@@ -1719,6 +1719,8 @@ class Nary(AST):
                     elif tmp.unit:
                         accum.unit = unit = tmp.unit
                     #accum.value /= unit_conv(tmp.value, tmp.unit, unit)
+                    if tmp.value == 0.0:
+                        raise SemantičkaGreška('Pokušaj dijeljenja s nulom')
                     accum = accum / tmp
                 else:
                     raise SemantičkaGreška('Nekompatibilni operandi množenja')

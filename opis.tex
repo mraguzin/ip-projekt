@@ -101,7 +101,7 @@ Jezik ima sljedeće mogućnosti:
     \item Aritmetika s jedinicama tj.\ dimenzijama; dimenzionalni \textsl{mismatch} je greška pri izvođenju ako se nije mogla dokazati statički, ali 
     interpreter uključuje i statički analizator tipova koji pokuša što je više moguće dokazati pri samom parsiranju i tako unaprijed izbjeći nemoguće
     operacije poput množenja/dijeljenja dimenzionalnih veličina (koje su u ovoj domeni samo mase) ili zbrajanja dimenzijske i nedimenzijske veličine;
-    \item Konkateniranje stringova;
+    \item Konkateniranje stringova sa $+$;
     \item Korisnički definirane funkcije;
     \item Ugrađene \verb|read| i \verb|write| funkcije koje (de)serijaliziraju iz/u JSON bilo koji objekt koji se koristi u programu;
     \item \verb|print| funkcija s očitom namjenom, kao u Pythonu;
@@ -111,7 +111,12 @@ Jezik ima sljedeće mogućnosti:
 \end{itemize}
 Jezik je \textsl{dynamically typed}, no sve se varijable moraju deklarirati prije uporabe; redeklaracije nisu dozvoljene te su svi objekti koje stvaramo
 imutabilni, osim \verb|Tree| objekata koji predstavljaju taksonomiju pojedine gljive. Ona se naime konstruira s default konstruktorom i onda se
-korištenjem dot-operatora (kao u C++-u) može pristupati pojedinim komponentama taksonomije i dodijeliti im stringove.
+korištenjem dot-operatora (kao u C++-u) može pristupati pojedinim komponentama taksonomije i dodijeliti im stringove. Tijekom parsiranja se obavljaju
+mnoge statičke provjere tipa koje pokušaju otkriti što više moguće ilegalnih konstrukata prije izvođenja programa
+ poput aritmetike između nekompatibilnih stvari (
+    samo neki primjeri: lista i broj, dimenzioniran broj plus nedimenzioniran broj, string plus nestring\ldots). No naravno problem statičkog
+određivanja tipa svakog izraza je u ovakvom jeziku općenito neodlučiv pa neće biti pokrivene situacije u kojima se pojavljuju recimo samo varijable (ne izvodimo
+daljnju analizu toka kroz funkcije programa kako bismo potencijalno suzili skup mogućih tipova za svaku vidljivu varijablu).
 
 Same gljive tj.\ uzorci su također objekti tipa \verb|Fungus| koji se konstruiraju s \verb|Fungus| konstruktorom; detalji su dani kroz komentare
 u izvornom kodu na \href{https://github.com/mraguzin/ip-projekt}{repozitoriju} ovog rada. Glavna funkcionalnost je rad s listama objekata gljiva
