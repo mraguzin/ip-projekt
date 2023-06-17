@@ -159,7 +159,6 @@ class T(TipoviTokena):
         def vrijednost(self):
             idx, symtab = get_symtab(self)
             return symtab[self]
-            return val
         def get_list_length(self):
             return None
     class STRING(Token):
@@ -1243,7 +1242,8 @@ class ForLoop(AST):
         idx, var = get_symtab(self.loop_variable)
         if not rt.okolina[idx][self.loop_variable] ^ Number:
             raise SemantičkaGreška('Varijabla u for petlji mora biti numerička')
-        while self.loop_variable.vrijednost() != Number(0, None):
+        rt.okolina.append(Memorija()) # push
+        while rt.okolina[idx][self.loop_variable] != Number(0, None):
             try:
                 self.body_statements.izvrši()
             except Prekid:
@@ -1251,6 +1251,7 @@ class ForLoop(AST):
             except Nastavak: pass
             rt.okolina[idx][self.loop_variable] -= Number(1, None) # ovo je default petlja; mogli bismo dodati i još neke, ali čak i ovakva implementacija
             # dozvoljava da korisnik mijenja varijablu i utječe na ponašanje petlje tijekom njena izvođenja
+        rt.okolina.pop()
 
 class SimpleBranch(AST):
     test: ...
@@ -1258,16 +1259,20 @@ class SimpleBranch(AST):
 
     def izvrši(self):
         if self.test.vrijednost():
+            rt.okolina.append(Memorija()) # push
             self.branch1_statements.izvrši()
+            rt.okolina.pop()
 
 class ComplexBranch(SimpleBranch):
     branch2_statements: ...
 
     def izvrši(self):
+        rt.okolina.append(Memorija()) # push
         if self.test.vrijednost():
             self.branch1_statements.izvrši()
         else:
             self.branch2_statements.izvrši()
+        rt.okolina.pop()
 
 class Call(AST):
     function: ...
