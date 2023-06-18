@@ -1748,8 +1748,9 @@ class DotList(AST,object):
                 ret = DotList.ili_samo([obj.timestamp, *self.elements[2:]])
             else:
                 raise SemantičkaGreška('Nepoznat atribut Fungus objekta: ' + self.elements[1].sadržaj)
-            if ret ^ DotList:
-                return ret.vrijednost()
+            #if ret ^ DotList:
+             #   return ret.vrijednost()
+            return ret.vrijednost()
         elif obj ^ Tree:
             if self.elements[1].sadržaj == 'spec':
                 return obj.spec
@@ -2434,6 +2435,20 @@ let učitano := read("dat3.txt");
 print(učitano);
 """
 
+program18 = """
+let dna := DNA(ATCGAGCCGGGT); # naravno, ovo je sve izmišljeno za demo svrhe
+let tax := Tree(); # uspostavljamo  taksonomiju za konkretnu gljivu
+tax.king := "Fungi"; # ok, očekivano...
+tax.class := "Agaricomycetes";
+tax.ord := "Agaricales";
+tax.fam := "Amanitaceae";
+tax.gen := "Amanita";
+tax.spec := "A. muscaria";
+
+let gljiva := Fungus("muhara", "Amanita muscaria", dna, tax); # test . operatora
+print(gljiva.dna);
+"""
+
 #alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
     #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #
 P(program4)
@@ -2457,3 +2472,4 @@ p15.izvrši()
 p16 = P(program16)
 p16.izvrši()
 P(program17).izvrši()
+P(program18).izvrši()

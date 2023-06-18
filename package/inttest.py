@@ -1748,8 +1748,9 @@ class DotList(AST,object):
                 ret = DotList.ili_samo([obj.timestamp, *self.elements[2:]])
             else:
                 raise SemantičkaGreška('Nepoznat atribut Fungus objekta: ' + self.elements[1].sadržaj)
-            if ret ^ DotList:
-                return ret.vrijednost()
+            #if ret ^ DotList:
+             #   return ret.vrijednost()
+            return ret.vrijednost()
         elif obj ^ Tree:
             if self.elements[1].sadržaj == 'spec':
                 return obj.spec
