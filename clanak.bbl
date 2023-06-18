@@ -1,0 +1,54 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.2 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{nty/global//global/global}
+    \entry{koza}{book}{}
+      \name{author}{1}{}{%
+        {{hash=d241153844d58a4b82a895968a24006f}{%
+           family={Koza},
+           familyi={K\bibinitperiod},
+           given={John\bibnamedelima R.},
+           giveni={J\bibinitperiod\bibinitdelim R\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Cambridge, MA, USA}%
+      }
+      \list{publisher}{1}{%
+        {MIT Press}%
+      }
+      \strng{namehash}{d241153844d58a4b82a895968a24006f}
+      \strng{fullhash}{d241153844d58a4b82a895968a24006f}
+      \strng{bibnamehash}{d241153844d58a4b82a895968a24006f}
+      \strng{authorbibnamehash}{d241153844d58a4b82a895968a24006f}
+      \strng{authornamehash}{d241153844d58a4b82a895968a24006f}
+      \strng{authorfullhash}{d241153844d58a4b82a895968a24006f}
+      \field{sortinit}{K}
+      \field{sortinithash}{c02bf6bff1c488450c352b40f5d853ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{0262111705}
+      \field{title}{Genetic Programming: On the Programming of Computers by Means of Natural Selection}
+      \field{year}{1992}
+      \true{nocite}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+
