@@ -1,14 +1,14 @@
 # Fdb version 4
-["biber clanak"] 0 "clanak.bcf" "clanak.bbl" "clanak" 1687092449 -1
+["biber clanak"] 0 "clanak.bcf" "clanak.bbl" "clanak" 1687093056 -1
   "./clanak.bib" 1687091769 225 3cc7e5bdca0b8af613a9be8b2160d722 ""
-  "clanak.bcf" 1687092449 107036 8abc71dd89c798f677c675e7a07c8b9f "pdflatex"
+  "clanak.bcf" 1687093056 107036 8abc71dd89c798f677c675e7a07c8b9f "pdflatex"
   (generated)
   "clanak.bbl"
   "clanak.blg"
   (rewritten before read)
-["pdflatex"] 1687092449 "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/clanak.tex" "clanak.pdf" "clanak" 1687092449 0
+["pdflatex"] 1687093055 "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/clanak.tex" "clanak.pdf" "clanak" 1687093056 0
   "/home/mraguzin/.texlive2021/texmf-var/web2c/pdftex/pdflatex.fmt" 1684104201 2727068 ae7323fd13a7671ffb345a56d588ed80 ""
-  "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/clanak.tex" 1687092447 8977 0ea0b665553b5cda2f0e28715310209c ""
+  "/home/mraguzin/Documents/PMF/diplomski/interpretacija/dz2/clanak.tex" 1687093055 8983 99e93569f2b3c9d2a33dc18b5ca5e286 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/lm/lm-rep-cmit.enc" 1202520719 2301 d95b27f41ce7251be2f38136e2e4dfe2 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/lm/lm-rep-cmrm.enc" 1202520719 2299 a3b6c25d7e3d7e92b220164f555e02c3 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/lm/lm-rep-cmsc.enc" 1202520719 2325 d720e9d2fb3a13712d9e646655a84941 ""
@@ -92,10 +92,10 @@
   "/usr/share/texlive/texmf-dist/tex/latex/url/url.sty" 1388531844 12796 8edb7d69a20b857904dd0ea757c14ec9 ""
   "/usr/share/texlive/texmf-dist/web2c/texmf.cnf" 1661385786 40136 b05acc85e8425979e52682d98a2bcacf ""
   "/usr/share/texlive/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1678356342 5196321 c0357fcda0e9d220440b260ce7231100 ""
-  "clanak.aux" 1687092449 1475 7f8e3fcf6d52576563ff1a0252e74611 "pdflatex"
+  "clanak.aux" 1687093056 1475 7f8e3fcf6d52576563ff1a0252e74611 "pdflatex"
   "clanak.bbl" 1687091947 1688 c3e5a59e589ee42f5c29c4ec3287cf83 "biber clanak"
-  "clanak.run.xml" 1687092449 2316 64033d82ced3c70a9cee378cdc7620af "pdflatex"
-  "clanak.tex" 1687092447 8977 0ea0b665553b5cda2f0e28715310209c ""
+  "clanak.run.xml" 1687093056 2316 64033d82ced3c70a9cee378cdc7620af "pdflatex"
+  "clanak.tex" 1687093055 8983 99e93569f2b3c9d2a33dc18b5ca5e286 ""
   (generated)
   "clanak.aux"
   "clanak.bcf"
