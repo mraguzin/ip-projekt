@@ -1,17 +1,44 @@
-\documentclass{article}
+\documentclass[12pt]{scrartcl}
 \usepackage[utf8]{inputenc}
 \usepackage[croatian]{babel}
 \usepackage{graphicx} % Required for inserting images
 \usepackage{listings}
 \usepackage[style=numeric]{biblatex}
 \usepackage{csquotes}
+\usepackage{color}
 \MakeOuterQuote{"}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    %keywordstyle=\color{magenta},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    %numbers=left,                    
+    %numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,       
+    tabsize=2
+}
+\lstset{style=mystyle}
 
 \addbibresource{clanak.bib}
 
 \title{Obrada mikoloških uzoraka}
 \author{Mauro Raguzin, Petar Pavlović}
-\date{Lipanj 2023}
+\date{Lipanj 2023.}
 
 \begin{document}
 
@@ -60,7 +87,6 @@ u praksi to kompleksniji algoritam.
 \textbf{Pogledajmo prvo primjere nekih mogućnosti koje jezik nudi.}
 \subsection{Prvi program}
 \begin{lstlisting}
-program1 = """
 let var := "nesto";
 if (var) {
    var := "novo";
@@ -81,8 +107,6 @@ print (datum);
 print (vrijeme);
 let ne := Number("14.22"); # konvertirajuci konstruktor
 print(ne);
-"""
-P(program1).izvrsi()
 \end{lstlisting}
 \textbf{Rezultat ovog programa:}
 \begin{lstlisting}
@@ -100,7 +124,6 @@ novo
 \subsection{Drugi program}
 \textbf{Kako funkcioniraju funkcije i datoteke:}
 \begin{lstlisting}
-program2 = """
 function mojafun(a, b) {
   let null;
   if(a) {
@@ -117,8 +140,6 @@ let ucitano1 := read("datoteka1.txt");
 let ucitano2 := read("datoteka2.txt");
 print(ucitano1);
 print(ucitano2);
-"""
-P(program2).izvrsi()
 \end{lstlisting}
 \textbf{Rezultat ovog programa:}
 \begin{lstlisting}
@@ -129,7 +150,6 @@ a je istinit
 Prikažimo rad sa gljivama. Svaka gljiva ima \textbf{ime}, \textbf{latinsko ime}, \textbf{DNA uzorak}, \textbf{taksonomiju} i opcionalno
 \textbf{vrijeme pronalaska}. Ako je vrijeme pronalaska nenavedeno, samo se stavlja trenutno vrijeme.
 \begin{lstlisting}
-program15 = """
 let dna1 := DNA(ATCGGTACG);
 let dna2 := DNA(GCCGGTCCG);
 let tax := Tree();
@@ -140,9 +160,6 @@ let fung1 := Fungus("naziv", "latinski", dna1, tax, datum);
 let fung2 := Fungus("naziv2", "latinski2", dna2, tax);
 print(fung1);
 print(fung2);
-"""
-p3 = P(program15)
-p3.izvrsi()
 \end{lstlisting}
 \textbf{Rezultat:}
 \begin{lstlisting}
@@ -166,7 +183,6 @@ Time found: 18.6.2023. 12:56:19
 \subsection{Genetski operatori}
 
 \begin{lstlisting}
-program4 = """
 let dna := DNA(AAAAAAAAAAA);
 let tax := Tree();
 tax.king := "Fungi";
@@ -192,8 +208,6 @@ print("dijete");
 print(dijete.dna);
 print("najbolja");
 print(najbolja.dna);
-"""
-P(program4).izvrsi()
 \end{lstlisting}
 \textbf{Rezultat:}
 \begin{lstlisting}
@@ -235,6 +249,6 @@ ipak neizvedivo, ali ako bi bilo moguće, ovaj jezik bi sigurno u tome pomogao.\
 
 \printbibliography
 Ova knjiga bi bila korisna pri daljnjem istraživanju mogućih smjerova razvoja ovog jezika. Za sada su korištene samo osnovne ideje triju
-genetskih operatora, ne i specifičnih detalja njihove implementacije iz knjige.
+genetskih operatora, ne i specifičnih detalja njihovih mogućih implementacija iz knjige.
 
 \end{document}
