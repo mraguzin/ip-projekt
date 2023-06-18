@@ -845,7 +845,7 @@ class P(Parser):
             right = p.expr()
             if right ^ Assignment:
                 raise SintaksnaGreška('Ulančavana pridruživanja nisu legalna') # ?
-            return Assignment(left, right)
+            return Assignment(left, right, False)
         return left
 
     def expr0(p):
@@ -1154,7 +1154,7 @@ class P(Parser):
         rt.symtab[-1][var] = var
 
         if p >= T.ASGN:
-            return Assignment(var, p.expr())
+            return Assignment(var, p.expr(), True)
         else:
             return Declaration(var)
 
@@ -1794,22 +1794,25 @@ class DotList(AST,object):
 class Assignment(AST):
     variable: ...# ovo ustvari ne mora samo biti varijabla već i dot-lista
     expression: ...
+    alsodecl: ...
 
     def izvrši(self):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
         if self.variable ^ T.IME:
-            #idx = get_symtab(self.variable)
+            if self.alsodecl:
+                rt.symtab[-1][self.variable] = None
+            idx, symtab = get_symtab(self.variable)
 
             tmp = self.expression.vrijednost()
             if tmp ^ List or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
-                #rt.symtab[idx][self.variable] = self.expression.vrijednost()
-                rt.okolina[-1][self.variable] = self.expression.vrijednost()
+                rt.symtab[idx][self.variable] = self.expression.vrijednost()
+                #rt.symtab[-1][self.variable] = self.expression.vrijednost()
             elif tmp ^ Edibility:
-                rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
-                #rt.symtab[idx][self.variable] = copy.deepcopy(self.expression.vrijednost())
+                #rt.symtab[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
+                rt.symtab[idx][self.variable] = copy.deepcopy(self.expression.vrijednost())
             else:
-                #rt.symtab[idx][self.variable] = self.expression.vrijednost()
-                rt.okolina[-1][self.variable] = self.expression.vrijednost()
+                rt.symtab[idx][self.variable] = self.expression.vrijednost()
+                #rt.symtab[-1][self.variable] = self.expression.vrijednost()
 
         elif self.variable ^ DotList:
             # dopuštamo izmjenu samo taksonomija...
