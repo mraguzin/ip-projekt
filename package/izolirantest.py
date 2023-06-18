@@ -222,7 +222,7 @@ class T(TipoviTokena):
             except: raise SemantičkaGreška('Parsiranje JSON-a nije uspjelo')
         def validate_call(self, *args):
             if len(args) != 1:
-                raise SintaksnaGreška('read funkcija očekuje jedan argument: ime JSON datoteke za pročitati')
+                raise SintaksnaGreška('read fu#nkcija očekuje jedan argument: ime JSON datoteke za pročitati')
         def get_list_length(self):
             return None
     class WRITE(Token):
@@ -1240,18 +1240,18 @@ class ForLoop(AST):
 
     def izvrši(self):
         idx, var = get_symtab(self.loop_variable)
-        if not rt.okolina[idx][self.loop_variable] ^ Number:
+        if not rt.symtab[idx][self.loop_variable] ^ Number:
             raise SemantičkaGreška('Varijabla u for petlji mora biti numerička')
-        rt.okolina.append(Memorija()) # push
-        while rt.okolina[idx][self.loop_variable] != Number(0, None):
+        rt.symtab.append(Memorija()) # push
+        while rt.symtab[idx][self.loop_variable] != Number(0, None):
             try:
                 self.body_statements.izvrši()
             except Prekid:
                 break
             except Nastavak: pass
-            rt.okolina[idx][self.loop_variable] -= Number(1, None) # ovo je default petlja; mogli bismo dodati i još neke, ali čak i ovakva implementacija
+            rt.symtab[idx][self.loop_variable] -= Number(1, None) # ovo je default petlja; mogli bismo dodati i još neke, ali čak i ovakva implementacija
             # dozvoljava da korisnik mijenja varijablu i utječe na ponašanje petlje tijekom njena izvođenja
-        rt.okolina.pop()
+        rt.symtab.pop()
 
 class SimpleBranch(AST):
     test: ...
@@ -1259,20 +1259,20 @@ class SimpleBranch(AST):
 
     def izvrši(self):
         if self.test.vrijednost():
-            rt.okolina.append(Memorija()) # push
+            rt.symtab.append(Memorija()) # push
             self.branch1_statements.izvrši()
-            rt.okolina.pop()
+            rt.symtab.pop()
 
 class ComplexBranch(SimpleBranch):
     branch2_statements: ...
 
     def izvrši(self):
-        rt.okolina.append(Memorija()) # push
+        rt.symtab.append(Memorija()) # push
         if self.test.vrijednost():
             self.branch1_statements.izvrši()
         else:
             self.branch2_statements.izvrši()
-        rt.okolina.pop()
+        rt.symtab.pop()
 
 class Call(AST):
     function: ...
@@ -1288,10 +1288,10 @@ class Call(AST):
             rt.funtab[self.function.sadržaj](*self.arguments)
             return None
                 
-        rt.okolina.append(Memorija())
+        rt.symtab.append(Memorija())
         i = 0
         for param in rt.funtab[self.function].parameter_names:
-            rt.okolina[-1][param] = self.arguments[i].vrijednost()
+            rt.symtab[-1][param] = self.arguments[i].vrijednost()
             i += 1
 
         retval = None
@@ -1300,7 +1300,7 @@ class Call(AST):
         except Povratak as ex:
             retval = ex.preneseno
         
-        rt.okolina.pop()
+        rt.symtab.pop()
         return retval
 
     def get_list_length(self):
@@ -1361,7 +1361,7 @@ class Tree(AST,object):
         for prop in ['species', 'genus', 'family', 'order', 'klasa', 'phylum', 'kingdom']:
             val = getattr(self, prop, None)
             if val:
-                tmp += prop + ': ' + val.value + '\n'
+                tmp += '\n' + prop + ': ' + val.value
         return tmp
 
 notree = Tree(nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno, nenavedeno)
@@ -1376,43 +1376,51 @@ class Binary(AST):
 
     def vrijednost(self):
         if self.op ^ T.CROSSING:
-            if not (self.left.vrijednost() ^ Fungus) or not (self.right.vrijednost() ^ Fungus):
-                raise SemantičkaGreška('Zasad oba operanda križanja moraju biti Fungus objekti, ne liste!')
-            # shorter = self.left.get_list_length()
-            # longer = self.right.get_list_length()
-            # lista = self.right
-            # if shorter > self.right.get_list_length():
-            #     shorter = self.right.get_list_length()
-            #     longer = self.left.get_list_length()
-            #     lista = self.left
-            one = self.left.vrijednost().dna
-            two = self.right.vrijednost().dna
-            shorter = len(one.bases) if len(one.bases) < len(two.bases) else len(two.bases)
-            longer = len(one.bases) if len(one.bases) > len(two.bases) else len(two.bases)
-            lista = one.bases if len(one.bases) > len(two.bases) else two.bases
-
-    #name: ...
-    # latin: ...
-    # dna: ...
-    # taxonomy: ...
-    # timestamp: ...
+            if self.left.vrijednost() ^ Fungus:
+                if not self.right.vrijednost() ^ Fungus:
+                    raise SemantičkaGreška('Oba operatora moraju biti gljive ili liste gljiva!')
+                self.left = List([self.left.vrijednost()])
+                self.right = List([self.right.vrijednost()])
+            if self.left.vrijednost() ^ List:
+                brojac = 0
+                crosslist = List([])
+                if not self.right.vrijednost() ^ List:
+                    raise SemantičkaGreška('Oba operatora moraju biti gljive ili liste gljiva!')
+                if len(self.left) != len(self.right):
+                    raise SemantičkaGreška('Obje liste moraju biti iste duljine!')
+                position = 0;
+                for position in range (len(self.left.vrijednost())):
+                    brojac+= 1
+                    leftie = self.left.vrijednost().elements[position]
+                    rightie = self.right.vrijednost().elements[position]
+                
+                    if not (leftie.vrijednost() ^ Fungus) or not (rightie.vrijednost() ^ Fungus):
+                        raise SemantičkaGreška('Svi elementi liste moraju biti gljive!')
+                    one = leftie.vrijednost().dna
+                    two = rightie.vrijednost().dna
+                    shorter = len(one.bases) if len(one.bases) < len(two.bases) else len(two.bases)
+                    longer = len(one.bases) if len(one.bases) > len(two.bases) else len(two.bases)
+                    lista = one.bases if len(one.bases) > len(two.bases) else two.bases
             
-            gen_code = []
-            for i in range (shorter):
-                num = random.randint(0,1)
-                if num == 0:
-                    gen_code.append(self.left.vrijednost().dna.bases[i])
-                else:
-                    gen_code.append(self.right.vrijednost().dna.bases[i])
-            num = random.randint(0,1)
-            if num == 0:
-                for i in range (longer - shorter):
-                    gen_code.append(lista[shorter + i])
-            newdna = DNA(gen_code)
+                    gen_code = []
+                    for i in range (shorter):
+                        num = random.randint(0,1)
+                        if num == 0:
+                            gen_code.append(leftie.vrijednost().dna.bases[i])
+                        else:
+                            gen_code.append(rightie.vrijednost().dna.bases[i])
+                    num = random.randint(0,1)
+                    if num == 0:
+                        for i in range (longer - shorter):
+                            gen_code.append(lista[shorter + i])
+                    newdna = DNA(gen_code)
 
-            now = datetime.datetime.now()
-            return Fungus(Literal('nema'), Literal('non curat'), newdna, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
-         # nećemo se zamarati ovim ostalim atributima...
+                    now = datetime.datetime.now()
+                    novi = Fungus(Literal('nema'), Literal('non curat'), newdna, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
+                    crosslist.elements.append(novi)
+                if brojac == 1:
+                    return novi
+                return crosslist
             
         elif self.op ^ T.AND:
             # nema listi
@@ -1519,31 +1527,40 @@ class Unary(AST):
     # timestamp: ...
     def vrijednost(self):
         if self.op ^ T.MUTATION:
-            if not self.child.vrijednost() ^ Fungus:
-                raise SemantičkaGreška('Mutacija zasad moguća samo nad jednom gljivom tj. Fungus objektom')
-            now = datetime.datetime.now()
-            mutant = Fungus(Literal('nema'), Literal('n/a'), nenavedeno, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
-            gen_code = []
-            child = self.child.vrijednost()
-            for i in range (len(child.dna.bases)):
-                num = random.randint(0,2)
-                if num == 0:
-                    for b in child.dna.bases:
-                        if b != child.dna.bases[i]:
+            if self.child.vrijednost() ^ Fungus:
+                self.child = List([self.child.vrijednost()])
+            if self.child.vrijednost() ^ List:
+                mutlist = List([])
+                brojac=0
+                for gljiva in self.child.vrijednost():
+                    brojac+=1
+                    if not gljiva.vrijednost() ^ Fungus:
+                        raise SemantičkaGreška('Svi elementi liste moraju biti gljive!')
+                    now = datetime.datetime.now()
+                    mutant = Fungus(Literal('nema'), Literal('n/a'), nenavedeno, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
+                    gen_code = []
+                    child = gljiva.vrijednost()
+                    for i in range (len(child.dna.bases)):
+                        num = random.randint(0,2)
+                        if num == 0:
+                            genes = ['A', 'T', 'C', 'G']
+                            b = genes[random.randint(0,3)]
                             gen_code.append(b)
-                            break
-                else:
-                    gen_code.append(child.dna.bases[i])
-            mutant.dna = DNA(gen_code) # sada je navedeno
-            return mutant
+                        else:
+                            gen_code.append(child.dna.bases[i])
+                    mutant.dna = DNA(gen_code) # sada je navedeno
+                    mutlist.elements.append(mutant)
+                if brojac == 1:
+                    return mutant
+                return mutlist
         
         elif self.op ^ T.SELECTION:
             if not self.child.vrijednost() ^ List:
                 raise SemantičkaGreška('Selekcija moguća samo nad listama Fungus objekata')
             now = datetime.datetime.now()
             best = Fungus(Literal('nema'), Literal('n/a'), nenavedeno, notree, DateTime([now.day, now.month, now.year], now.hour, now.minute, now.second))
-            mini = 0
             child = self.child.vrijednost()
+            mini = 7
             for fung in child:
                 fung = fung.vrijednost()
                 if not fung ^ Fungus:
@@ -1561,7 +1578,7 @@ class Unary(AST):
                         temp = genes[i] - genes[i+j+1]
                         temp*= temp
                         value+= temp
-                if mini < value:
+                if mini > value:
                     mini = value
                     best = fung
             return best
@@ -1781,23 +1798,23 @@ class Assignment(AST):
     def izvrši(self):
         # želimo drukčija ponašanja glede kopiranja objekata; najveći objekti se kopiraju samo po referenci, ali za ostale želimo potpunu (duboku) kopiju
         if self.variable ^ T.IME:
+            #idx = get_symtab(self.variable)
+
             tmp = self.expression.vrijednost()
             if tmp ^ List or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
-            #if tmp ^ list or tmp ^ Literal and (type(tmp.value) == str or type(tmp.value) == bool):
+                #rt.symtab[idx][self.variable] = self.expression.vrijednost()
                 rt.okolina[-1][self.variable] = self.expression.vrijednost()
             elif tmp ^ Edibility:
                 rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
+                #rt.symtab[idx][self.variable] = copy.deepcopy(self.expression.vrijednost())
             else:
+                #rt.symtab[idx][self.variable] = self.expression.vrijednost()
                 rt.okolina[-1][self.variable] = self.expression.vrijednost()
-            # elif type(tmp) == list  or not(tmp ^ Fungus or tmp ^ DNA):
-            #     rt.okolina[-1][self.variable] = copy.deepcopy(self.expression.vrijednost())
-            # else:
-            #     rt.okolina[-1][self.variable] = self.expression.vrijednost()
-                
+
         elif self.variable ^ DotList:
             # dopuštamo izmjenu samo taksonomija...
             dotlist = self.variable
-            var = rt.okolina[-1][dotlist.elements[0]]
+            var = rt.symtab[-1][dotlist.elements[0]]
             if not dotlist.elements[0].vrijednost() ^ Tree:
                 raise SemantičkaGreška('Samo taksonomije mogu biti mijenjane sa . listama')
             if len(dotlist.elements) != 2:
@@ -2134,7 +2151,7 @@ class Fungus(object): # NAPOMENA: ovo ustvari *nije* AST tj. nešto što parser 
         return self.latin != other.latin
 
     def __str__(self):
-        tmp = 'Name: ' + self.name.value + '\n' +     'Latin name: ' + self.latin.value + '\n' +     'DNA: ' + str(self.dna) + '\n'+     'Taxonomy: ' + str(self.taxonomy) + '\n'+     'Time found: ' + str(self.timestamp)
+        tmp = 'Name: ' + self.name.value + '\n' +     'Latin name: ' + self.latin.value + '\n' +     'DNA: ' + str(self.dna) + '\n'+     'Taxonomy: ' + str(self.taxonomy) + '\n'+     'Time found: ' + str(self.timestamp) + '\n'
         return tmp
     
     def get_list_length(self):
@@ -2283,7 +2300,7 @@ class Declaration(AST):
     variable: ...
 
     def izvrši(self):
-        rt.okolina[-1][self.variable] = None
+        rt.symtab[-1][self.variable] = None
 
 initialised = False
 
@@ -2449,15 +2466,100 @@ let gljiva := Fungus("muhara", "Amanita muscaria", dna, tax); # test . operatora
 print(gljiva.dna);
 """
 
-#alias = {'⥼': T.MUTATION, 'mutate': T.MUTATION, '⊗': T.CROSSING, '⊙': T.SELECTION, 'cross': T.CROSSING, 'select': T.SELECTION}
-    #SPECIES, GENUS, FAMILY, ORDER, CLASS, PHYLUM, KINGDOM = 'spec', 'gen', 'fam', 'ord', 'class', 'phyl', 'king' #
+program19 = """
+let var := "nesto";
+if (var) {
+   var := "novo";
+}
+print (var);
+var := 5;
+let accum := 0;
+for var {
+   accum := accum + 2;
+   print (accum);
+}
+let v1 := [3, 54g, 200mg, "prvi i ", -1];
+let v2 := [1, 1g, 1g, "drugi", 0];
+print(v1+v2);
+let datum := 1.1.2011.;
+let vrijeme := 13.9.2013. 10:10;
+print (datum);
+print (vrijeme);
+let ne := Number("14.22"); # konvertirajuci konstruktor
+print(ne);
+"""
+
+
+
+program21 = """
+let dna1 := DNA(ATCGGTACG);
+let dna2 := DNA(GCCGGTCCG);
+let tax := Tree();
+tax.phyl := "neka filogeneza";
+tax.king := "neko kraljevstvo";
+let datum := 25.3.2008.;
+let fung1 := Fungus("naziv", "latinski", dna1, tax, datum);
+let fung2 := Fungus("naziv2", "latinski2", dna2, tax);
+print(fung1);
+print(fung2);
+"""
+
+program22 = """
+let dna := DNA(AAAAAAAAAAA);
+let tax := Tree();
+tax.king := "Fungi";
+tax.class := "Agaricomycetes";
+tax.ord := "Agaricales";
+tax.fam := "Amanitaceae";
+tax.gen := "Amanita";
+tax.spec := "A. muscaria";
+
+let gljiva := Fungus("muhara", "Amanita muscaria", dna, tax);
+let gljiva2 := Fungus("muhara2", "Amanita muscaria", dna2, tax);
+
+let mutirana := mutate gljiva;
+let mutirana2:= mutate mutirana;
+let dijete := mutirana cross mutirana2;
+let najbolja := [gljiva, mutirana, mutirana2]select;
+print(gljiva);
+print("mutirana");
+print(mutirana.dna);
+print("mutirana2");
+print(mutirana2.dna);
+print("dijete");
+print(dijete.dna);
+print("najbolja");
+print(najbolja.dna);
+"""
+
+program00 = """
+function mojafun(a, b) {
+  let null;
+  print("Unutar mojafun u program00:");
+
+  if(a) {
+    null := "a je istinit";
+    print(null);
+  }
+  else {
+    null := 0;
+    print(null);
+  }
+  
+  print(null);
+  return null;
+}
+
+print("MOJAFUN OUTPUT:");
+print(mojafun(true, 0));
+"""
+
 P(program4)
 P(program5)
 P(program7)
 p8 = P(program8)
 p8.izvrši()
 P(program9).izvrši()
-P(program10).izvrši()
 p11 = P(program11)
 p11.izvrši()
 p12 = P(program12)
@@ -2468,8 +2570,12 @@ p14 = P(program14)
 p14.izvrši()
 p15 = P(program15)
 p15.izvrši()
-#p0 = P(program0)
 p16 = P(program16)
 p16.izvrši()
+P(program00).izvrši()
 P(program17).izvrši()
 P(program18).izvrši()
+P(program19).izvrši()
+#P(program20).izvrši()
+P(program21).izvrši()
+P(program22).izvrši()
